@@ -31,7 +31,7 @@ ENV NODE_ENV=production
 COPY package*.json ./
 
 RUN npm ci --omit=dev \
-  && npm clean cache --force
+  && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
