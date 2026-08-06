@@ -1,5 +1,5 @@
-import { Boundaries } from "@/boundaries/boundaries.interface";
-import { BoundariesRepository } from "@/boundaries/boundaries.repository";
+import { Boundaries } from "./boundaries.interface";
+import { BoundariesRepository } from "./boundaries.repository";
 import { Injectable } from "@nestjs/common";
 
 @Injectable()

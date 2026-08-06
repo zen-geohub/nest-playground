@@ -1,5 +1,5 @@
-import { BoundariesController } from "@/boundaries/boundaries.controller";
-import { BoundariesService } from "@/boundaries/boundaries.service";
+import { BoundariesController } from "./boundaries.controller";
+import { BoundariesService } from "./boundaries.service";
 import { Module } from "@nestjs/common";
 import { BoundariesRepository } from "./boundaries.repository";
 

@@ -1,5 +1,5 @@
-import { Boundaries } from "@/boundaries/boundaries.interface";
-import { DatabaseService } from "@/database/database.service";
+import { Boundaries } from "./boundaries.interface";
+import { DatabaseService } from "../database/database.service";
 import { Injectable } from "@nestjs/common";
 
 @Injectable()
