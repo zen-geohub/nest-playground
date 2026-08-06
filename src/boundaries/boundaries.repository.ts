@@ -19,7 +19,7 @@ export class BoundariesRepository {
   async findFilters(id: string): Promise<Omit<Boundaries, "geom">[]> {
     const table = this.getAdminTable(id.length);
 
-    const { rows } = await this.db.query(
+    const { rows } = await this.db.query<Omit<Boundaries, "geom">>(
       `SELECT
           id, name
         FROM ${table}
@@ -33,8 +33,7 @@ export class BoundariesRepository {
   }
 
   private getAdminTable(idLength: number): string {
-    const config =
-      this.ADMIN_LEVELS[idLength as keyof typeof this.ADMIN_LEVELS];
+    const config = this.ADMIN_LEVELS[idLength];
 
     if (!config) {
       throw new Error("Invalid parameters!");

@@ -4,6 +4,7 @@ import { DatabaseModule } from "./database/database.module";
 import { ConfigModule } from "@nestjs/config";
 import databaseConfig from "@/config/database.config";
 import Joi from "joi";
+import { AppController } from "@/app.controller";
 
 @Module({
   imports: [
@@ -18,5 +19,6 @@ import Joi from "joi";
     DatabaseModule,
     BoundariesModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
