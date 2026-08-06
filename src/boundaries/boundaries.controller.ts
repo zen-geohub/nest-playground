@@ -1,5 +1,5 @@
-import { Boundaries } from "@/boundaries/boundaries.interface";
-import { BoundariesService } from "@/boundaries/boundaries.service";
+import { Boundaries } from "./boundaries.interface";
+import { BoundariesService } from "./boundaries.service";
 import {
   BadRequestException,
   Body,
