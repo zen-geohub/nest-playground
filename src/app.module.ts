@@ -1,10 +1,11 @@
 import { BoundariesModule } from "@/boundaries/boundaries.module";
-import { Module } from "@nestjs/common";
+import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { DatabaseModule } from "./database/database.module";
 import { ConfigModule } from "@nestjs/config";
 import databaseConfig from "@/config/database.config";
 import Joi from "joi";
 import { AppController } from "@/app.controller";
+import { LoggerModule } from "@/logger/logger.module";
 
 @Module({
   imports: [
@@ -12,10 +13,11 @@ import { AppController } from "@/app.controller";
       isGlobal: true,
       envFilePath: [".env.local", ".env"],
       validationSchema: Joi.object({
-        DB_URI: Joi.string().required(),
+        DATABASE_URL: Joi.string().required(),
       }),
       load: [databaseConfig],
     }),
+    LoggerModule,
     DatabaseModule,
     BoundariesModule,
   ],
