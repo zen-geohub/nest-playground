@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 import type { MigrationBuilder } from "node-pg-migrate";
 
 export async function up(pgm: MigrationBuilder): Promise<void> {
@@ -5,6 +6,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     id: {
       type: "uuid",
       primaryKey: true,
+      default: pgm.func("uuidv7()"),
     },
     email: {
       type: "varchar(255)",
@@ -33,6 +35,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     id: {
       type: "uuid",
       primaryKey: true,
+      default: pgm.func("uuidv7()"),
     },
     user_id: {
       type: "uuid",

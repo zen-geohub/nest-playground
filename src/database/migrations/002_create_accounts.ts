@@ -1,17 +1,29 @@
+/* eslint-disable @typescript-eslint/require-await */
 import type { MigrationBuilder } from "node-pg-migrate";
 
 export async function up(pgm: MigrationBuilder): Promise<void> {
-  pgm.createTable("users", {
+  pgm.createTable("accounts", {
     id: {
       type: "uuid",
       primaryKey: true,
+      default: pgm.func("uuidv7()"),
     },
-    email: {
-      type: "varchar(255)",
+    user_id: {
+      type: "uuid",
+      onDelete: "CASCADE",
+      references: '"users"',
       notNull: true,
     },
-    password: {
-      type: "varchar(255)",
+    name: {
+      type: "varchar(100)",
+      notNull: true,
+    },
+    type: {
+      type: "varchar(20)",
+      notNull: true,
+    },
+    balance: {
+      type: "bigint",
       notNull: true,
     },
     created_at: {
@@ -28,5 +40,5 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
 }
 
 export async function down(pgm: MigrationBuilder): Promise<void> {
-  pgm.dropTable("users");
+  pgm.dropTable("accounts");
 }

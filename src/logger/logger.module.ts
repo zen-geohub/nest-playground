@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { LoggerModule as PinoModule } from "nestjs-pino";
@@ -38,5 +39,6 @@ import { LoggerModule as PinoModule } from "nestjs-pino";
       },
     }),
   ],
+  exports: [PinoModule],
 })
 export class LoggerModule {}
