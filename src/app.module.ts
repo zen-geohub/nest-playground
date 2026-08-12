@@ -4,8 +4,11 @@ import { DatabaseModule } from "./database/database.module";
 import { ConfigModule } from "@nestjs/config";
 import databaseConfig from "@/config/database.config";
 import Joi from "joi";
-import { AppController } from "@/app.controller";
 import { LoggerModule } from "@/logger/logger.module";
+import { HealthModule } from "@/health/health.module";
+import { APP_FILTER } from "@nestjs/core";
+import { AllExceptionFilter } from "@/core/filters/all-exception.filter";
+import { HttpExceptionFilter } from "@/core/filters/http-exception.filter";
 
 @Module({
   imports: [
@@ -19,8 +22,12 @@ import { LoggerModule } from "@/logger/logger.module";
     }),
     LoggerModule,
     DatabaseModule,
+    HealthModule,
     BoundariesModule,
   ],
-  controllers: [AppController],
+  providers: [
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_FILTER, useClass: AllExceptionFilter },
+  ],
 })
 export class AppModule {}
