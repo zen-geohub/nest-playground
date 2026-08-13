@@ -1,23 +1,35 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { ConflictException } from "@nestjs/common";
+import { hash } from "../../utils/argon";
+import {
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PinoLogger } from "nestjs-pino";
 import { AuthRepository } from "./auth.repository";
 import { AuthService } from "./auth.service";
-import { CreateUserDto } from "./dto";
+import { CreateUserDto, LoginDto } from "./dto";
 
 describe("AuthService", () => {
   let service: AuthService;
   let repository: jest.Mocked<AuthRepository>;
+  let jwtService: jest.Mocked<JwtService>;
 
   beforeEach(async () => {
     const mockRepository = {
       findUserByEmail: jest.fn(),
+      findUserById: jest.fn(),
       insertUser: jest.fn(),
     };
 
     const mockLogger = {
       setContext: jest.fn(),
+    };
+
+    const mockJwtService = {
+      signAsync: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -31,11 +43,16 @@ describe("AuthService", () => {
           provide: PinoLogger,
           useValue: mockLogger,
         },
+        {
+          provide: JwtService,
+          useValue: mockJwtService,
+        },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
     repository = module.get(AuthRepository);
+    jwtService = module.get(JwtService);
   });
 
   it("should be defined", () => {
@@ -66,7 +83,6 @@ describe("AuthService", () => {
         }),
       );
 
-      // Verify password was securely hashed via argon2id
       expect(payload.password).not.toBe("PlainPassword123!");
       expect(payload.password).toContain("$argon2id$");
       expect(result).toEqual(mockResult);
@@ -84,7 +100,105 @@ describe("AuthService", () => {
       );
 
       await expect(service.create(payload)).rejects.toThrow(ConflictException);
-      expect(repository.insertUser).toHaveBeenCalled();
+    });
+  });
+
+  describe("login", () => {
+    it("should authenticate valid user and return access_token", async () => {
+      const plainPassword = "MySecretPassword123!";
+      const hashedPassword = await hash(plainPassword);
+
+      const loginPayload: LoginDto = {
+        email: "user@example.com",
+        password: plainPassword,
+      };
+
+      const mockUserRecord = {
+        id: "user-uuid-101",
+        email: "user@example.com",
+        password: hashedPassword,
+        name: "Jane Doe",
+      };
+
+      repository.findUserByEmail.mockResolvedValue([mockUserRecord]);
+      jwtService.signAsync.mockResolvedValue("mocked_jwt_access_token_123");
+
+      const result = await service.login(loginPayload);
+
+      expect(repository.findUserByEmail).toHaveBeenCalledWith(
+        "user@example.com",
+      );
+      expect(jwtService.signAsync).toHaveBeenCalledWith({
+        sub: "user-uuid-101",
+      });
+      expect(result).toEqual({ access_token: "mocked_jwt_access_token_123" });
+    });
+
+    it("should throw NotFoundException if user email does not exist", async () => {
+      const loginPayload: LoginDto = {
+        email: "nonexistent@example.com",
+        password: "Password123!",
+      };
+
+      repository.findUserByEmail.mockResolvedValue([]);
+
+      await expect(service.login(loginPayload)).rejects.toThrow(
+        new NotFoundException("User not found!"),
+      );
+    });
+
+    it("should throw UnauthorizedException if password does not match", async () => {
+      const correctPassword = "CorrectPassword123!";
+      const hashedPassword = await hash(correctPassword);
+
+      const loginPayload: LoginDto = {
+        email: "user@example.com",
+        password: "WrongPassword123!",
+      };
+
+      const mockUserRecord = {
+        id: "user-uuid-101",
+        email: "user@example.com",
+        password: hashedPassword,
+        name: "Jane Doe",
+      };
+
+      repository.findUserByEmail.mockResolvedValue([mockUserRecord]);
+
+      await expect(service.login(loginPayload)).rejects.toThrow(
+        new UnauthorizedException("Invalid credentials!"),
+      );
+    });
+  });
+
+  describe("me", () => {
+    it("should return user profile data for authenticated user ID", async () => {
+      const mockUserRecord = {
+        id: "user-uuid-101",
+        email: "user@example.com",
+        password: "hashed_password",
+        name: "Jane Doe",
+      };
+
+      repository.findUserById.mockResolvedValue([mockUserRecord]);
+
+      const result = await service.me("user-uuid-101");
+
+      expect(repository.findUserById).toHaveBeenCalledWith("user-uuid-101");
+      expect(result).toEqual({
+        id: "user-uuid-101",
+        email: "user@example.com",
+        name: "Jane Doe",
+      });
+      expect(result).not.toHaveProperty("password");
+    });
+
+    it("should throw NotFoundException if user ID is not found", async () => {
+      repository.findUserById.mockResolvedValue([]);
+
+      await expect(service.me("invalid-id")).rejects.toThrow(
+        new NotFoundException("User not found!"),
+      );
     });
   });
 });

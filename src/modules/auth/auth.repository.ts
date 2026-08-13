@@ -1,7 +1,7 @@
-import { DatabaseService } from "../../database/database.service";
-import { CreateUserDto } from "./dto";
-import { CreateUserSchema } from "./schemas";
-import { buildInsert } from "../../utils/db";
+import { DatabaseService } from "@/database/database.service";
+import { CreateUserDto } from "@/modules/auth/dto";
+import { CreateUserSchema } from "@/modules/auth/schemas";
+import { buildInsert } from "@/utils/db";
 import {
   ConflictException,
   HttpException,
@@ -15,16 +15,35 @@ export class AuthRepository {
 
   async findUserByEmail(
     email: string,
-  ): Promise<{ id: string; email: string; name: string }[]> {
+  ): Promise<{ id: string; email: string; password: string; name: string }[]> {
     const { rows } = await this.db.query<{
       id: string;
       email: string;
+      password: string;
       name: string;
     }>(
-      `SELECT id, email, name
+      `SELECT id, email, password, name
       FROM users
       WHERE LOWER(email) = LOWER($1)`,
       [email],
+    );
+
+    return rows;
+  }
+
+  async findUserById(
+    id: string,
+  ): Promise<{ id: string; email: string; password: string; name: string }[]> {
+    const { rows } = await this.db.query<{
+      id: string;
+      email: string;
+      password: string;
+      name: string;
+    }>(
+      `SELECT id, email, password, name
+      FROM users
+      WHERE id = $1`,
+      [id],
     );
 
     return rows;

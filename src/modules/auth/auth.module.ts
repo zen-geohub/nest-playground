@@ -1,10 +1,26 @@
-import { AuthController } from "./auth.controller";
-import { AuthRepository } from "./auth.repository";
-import { AuthService } from "./auth.service";
+import { JwtModule } from "@nestjs/jwt";
 import { Module } from "@nestjs/common";
+import { AuthController } from "@/modules/auth/auth.controller";
+import { AuthService } from "@/modules/auth/auth.service";
+import { AuthRepository } from "@/modules/auth/auth.repository";
+import envConfig from "@/config/env.config";
+import { ConfigType } from "@nestjs/config";
+import { JwtStrategy } from "@/modules/auth/strategies/jwt.strategy";
+import { JwtAuthGuard } from "@/modules/auth/guards/jwt-auth.guard";
 
 @Module({
+  imports: [
+    JwtModule.registerAsync({
+      inject: [envConfig.KEY],
+      useFactory: (config: ConfigType<typeof envConfig>) => ({
+        secret: config.access_secret,
+        signOptions: {
+          expiresIn: "1h",
+        },
+      }),
+    }),
+  ],
   controllers: [AuthController],
-  providers: [AuthService, AuthRepository],
+  providers: [AuthService, AuthRepository, JwtStrategy, JwtAuthGuard],
 })
 export class AuthModule {}

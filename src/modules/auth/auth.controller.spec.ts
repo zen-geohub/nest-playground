@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { ConflictException } from "@nestjs/common";
+import {
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
-import { CreateUserDto } from "./dto";
+import { CreateUserDto, LoginDto } from "./dto";
 
 describe("AuthController", () => {
   let controller: AuthController;
@@ -12,6 +16,8 @@ describe("AuthController", () => {
   beforeEach(async () => {
     const mockAuthService = {
       create: jest.fn(),
+      login: jest.fn(),
+      me: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -67,6 +73,69 @@ describe("AuthController", () => {
       await expect(controller.register(payload)).rejects.toThrow(
         ConflictException,
       );
+    });
+  });
+
+  describe("login", () => {
+    it("should authenticate login payload and return access_token", async () => {
+      const payload: LoginDto = {
+        email: "user@example.com",
+        password: "Password123!",
+      };
+
+      const mockResponse = { access_token: "jwt_token_xyz" };
+      service.login.mockResolvedValue(mockResponse);
+
+      const result = await controller.login(payload);
+
+      expect(service.login).toHaveBeenCalledWith(payload);
+      expect(result).toEqual(mockResponse);
+    });
+
+    it("should propagate NotFoundException if user is not found", async () => {
+      const payload: LoginDto = {
+        email: "notfound@example.com",
+        password: "Password123!",
+      };
+
+      service.login.mockRejectedValue(new NotFoundException("User not found!"));
+
+      await expect(controller.login(payload)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("should propagate UnauthorizedException if password is invalid", async () => {
+      const payload: LoginDto = {
+        email: "user@example.com",
+        password: "WrongPassword!",
+      };
+
+      service.login.mockRejectedValue(
+        new UnauthorizedException("Invalid credentials!"),
+      );
+
+      await expect(controller.login(payload)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe("me", () => {
+    it("should return profile data for current authenticated user", async () => {
+      const currentUser = { id: "user-uuid-101" };
+      const mockProfile = {
+        id: "user-uuid-101",
+        email: "user@example.com",
+        name: "Jane Doe",
+      };
+
+      service.me.mockResolvedValue(mockProfile);
+
+      const result = await controller.me(currentUser);
+
+      expect(service.me).toHaveBeenCalledWith("user-uuid-101");
+      expect(result).toEqual(mockProfile);
     });
   });
 });
