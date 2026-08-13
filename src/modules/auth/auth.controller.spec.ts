@@ -18,6 +18,7 @@ describe("AuthController", () => {
       create: jest.fn(),
       login: jest.fn(),
       me: jest.fn(),
+      findOrCreateIdentity: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -136,6 +137,29 @@ describe("AuthController", () => {
 
       expect(service.me).toHaveBeenCalledWith("user-uuid-101");
       expect(result).toEqual(mockProfile);
+    });
+  });
+
+  describe("googleCallback", () => {
+    it("should call findOrCreateIdentity with Google provider and user details", async () => {
+      const oauthUser = {
+        id: "google-oauth-id-123",
+        email: "google@example.com",
+        name: "Google User",
+      };
+
+      const mockResponse = { access_token: "google_access_token_abc" };
+      service.findOrCreateIdentity.mockResolvedValue(mockResponse);
+
+      const result = await controller.googleCallback(oauthUser);
+
+      expect(service.findOrCreateIdentity).toHaveBeenCalledWith({
+        id: "google-oauth-id-123",
+        email: "google@example.com",
+        name: "Google User",
+        provider: "google",
+      });
+      expect(result).toEqual(mockResponse);
     });
   });
 });

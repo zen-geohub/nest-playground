@@ -13,9 +13,12 @@ import {
 export class AuthRepository {
   constructor(private db: DatabaseService) {}
 
-  async findUserByEmail(
-    email: string,
-  ): Promise<{ id: string; email: string; password: string; name: string }[]> {
+  async findUserByEmail(email: string): Promise<{
+    id: string;
+    email: string;
+    password: string;
+    name: string;
+  } | null> {
     const { rows } = await this.db.query<{
       id: string;
       email: string;
@@ -28,12 +31,15 @@ export class AuthRepository {
       [email],
     );
 
-    return rows;
+    return rows[0] ? rows[0] : null;
   }
 
-  async findUserById(
-    id: string,
-  ): Promise<{ id: string; email: string; password: string; name: string }[]> {
+  async findUserById(id: string): Promise<{
+    id: string;
+    email: string;
+    password: string;
+    name: string;
+  } | null> {
     const { rows } = await this.db.query<{
       id: string;
       email: string;
@@ -46,13 +52,13 @@ export class AuthRepository {
       [id],
     );
 
-    return rows;
+    return rows[0] ? rows[0] : null;
   }
 
   async insertUser(payload: CreateUserDto) {
     const check = await this.findUserByEmail(payload.email);
 
-    if (check.length > 0) {
+    if (check) {
       throw new ConflictException("Email already exists!");
     }
 
@@ -82,5 +88,68 @@ export class AuthRepository {
       success: true,
       message: "Successfully register new account.",
     };
+  }
+
+  async findOrCreateIdentity({
+    provider,
+    id,
+    email,
+    name,
+  }: {
+    provider: string;
+    id: string;
+    email: string;
+    name: string;
+  }) {
+    const existingIdentity = await this.findIdentity(provider, id);
+
+    if (existingIdentity) {
+      return { userId: existingIdentity.userId, isNewUser: false };
+    }
+
+    const existingUser = await this.findUserByEmail(email);
+
+    if (existingUser) {
+      await this.db.query(
+        `INSERT INTO auth_identities (user_id, provider, provider_user_id)
+        VALUES ($1, $2, $3)`,
+        [existingUser.id, provider, id],
+      );
+
+      return { userId: existingUser.id, isNewUser: false };
+    }
+
+    return this.db.transaction(async (client) => {
+      console.log("transaction", email);
+      const { rows } = await client.query<{ id: string }>(
+        `INSERT INTO users (email, name)
+        VALUES ($1, $2)
+        ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+        RETURNING id`,
+        [email, name],
+      );
+
+      const userId = rows[0].id;
+
+      await client.query(
+        `INSERT INTO auth_identities (user_id, provider, provider_user_id)
+        VALUES ($1, $2, $3)`,
+        [userId, provider, id],
+      );
+
+      return { userId, isNewUser: true };
+    });
+  }
+
+  private async findIdentity(provider: string, providerUserId: string) {
+    const { rows } = await this.db.query<{ user_id: string }>(
+      `
+      SELECT user_id
+      FROM auth_identities
+      WHERE provider = $1 AND provider_user_id = $2`,
+      [provider, providerUserId],
+    );
+
+    return rows[0] ? { userId: rows[0].user_id } : null;
   }
 }

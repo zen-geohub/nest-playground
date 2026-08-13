@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/require-await */
 import { DatabaseService } from "../../database/database.service";
 import { ConflictException, HttpException, HttpStatus } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -12,6 +12,7 @@ describe("AuthRepository", () => {
   beforeEach(async () => {
     const mockDbService = {
       query: jest.fn(),
+      transaction: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -33,7 +34,7 @@ describe("AuthRepository", () => {
   });
 
   describe("findUserByEmail", () => {
-    it("should query user by lowercase email and return matching records", async () => {
+    it("should query user by lowercase email and return single user object if found", async () => {
       const mockUser = {
         id: "uuid-1234",
         email: "existing@example.com",
@@ -55,10 +56,10 @@ describe("AuthRepository", () => {
         expect.stringMatching(/LOWER\(email\)\s*=\s*LOWER\(\$1\)/i),
         ["Existing@Example.com"],
       );
-      expect(result).toEqual([mockUser]);
+      expect(result).toEqual(mockUser);
     });
 
-    it("should return empty array if user email is not found", async () => {
+    it("should return null if user email is not found", async () => {
       dbService.query.mockResolvedValueOnce({
         rows: [],
         rowCount: 0,
@@ -71,12 +72,12 @@ describe("AuthRepository", () => {
         "nonexistent@example.com",
       );
 
-      expect(result).toEqual([]);
+      expect(result).toBeNull();
     });
   });
 
   describe("findUserById", () => {
-    it("should query user by ID and return matching user records", async () => {
+    it("should query user by ID and return user object if found", async () => {
       const mockUser = {
         id: "uuid-5555",
         email: "user@example.com",
@@ -98,10 +99,10 @@ describe("AuthRepository", () => {
         expect.stringMatching(/WHERE id = \$1/i),
         ["uuid-5555"],
       );
-      expect(result).toEqual([mockUser]);
+      expect(result).toEqual(mockUser);
     });
 
-    it("should return empty array if user ID does not exist", async () => {
+    it("should return null if user ID does not exist", async () => {
       dbService.query.mockResolvedValueOnce({
         rows: [],
         rowCount: 0,
@@ -112,7 +113,7 @@ describe("AuthRepository", () => {
 
       const result = await repository.findUserById("nonexistent-id");
 
-      expect(result).toEqual([]);
+      expect(result).toBeNull();
     });
   });
 
@@ -124,7 +125,7 @@ describe("AuthRepository", () => {
     };
 
     it("should insert user when email is not registered", async () => {
-      // findUserByEmail -> empty
+      // findUserByEmail -> null
       dbService.query.mockResolvedValueOnce({
         rows: [],
         rowCount: 0,
@@ -152,7 +153,7 @@ describe("AuthRepository", () => {
     });
 
     it("should throw ConflictException if duplicate email registration is attempted", async () => {
-      // findUserByEmail -> user exists
+      // findUserByEmail -> user object returned
       dbService.query.mockResolvedValueOnce({
         rows: [
           {
@@ -198,6 +199,126 @@ describe("AuthRepository", () => {
           HttpStatus.INTERNAL_SERVER_ERROR,
         ),
       );
+    });
+  });
+
+  describe("findOrCreateIdentity", () => {
+    const oauthPayload = {
+      provider: "google",
+      id: "google-id-777",
+      email: "oauth@example.com",
+      name: "OAuth User",
+    };
+
+    it("should return existing identity user ID if identity already linked", async () => {
+      // 1st query: findIdentity -> identity found
+      dbService.query.mockResolvedValueOnce({
+        rows: [{ user_id: "existing-user-uuid-1" }],
+        rowCount: 1,
+        command: "SELECT",
+        oid: 0,
+        fields: [],
+      });
+
+      const result = await repository.findOrCreateIdentity(oauthPayload);
+
+      expect(result).toEqual({
+        userId: "existing-user-uuid-1",
+        isNewUser: false,
+      });
+      expect(dbService.query).toHaveBeenCalledTimes(1);
+    });
+
+    it("should link identity to existing user if email matches existing user", async () => {
+      // 1st query: findIdentity -> null
+      dbService.query.mockResolvedValueOnce({
+        rows: [],
+        rowCount: 0,
+        command: "SELECT",
+        oid: 0,
+        fields: [],
+      });
+
+      // 2nd query: findUserByEmail -> user found
+      dbService.query.mockResolvedValueOnce({
+        rows: [
+          {
+            id: "existing-user-uuid-2",
+            email: "oauth@example.com",
+            password: "",
+            name: "OAuth User",
+          },
+        ],
+        rowCount: 1,
+        command: "SELECT",
+        oid: 0,
+        fields: [],
+      });
+
+      // 3rd query: INSERT into auth_identities
+      dbService.query.mockResolvedValueOnce({
+        rows: [],
+        rowCount: 1,
+        command: "INSERT",
+        oid: 0,
+        fields: [],
+      });
+
+      const result = await repository.findOrCreateIdentity(oauthPayload);
+
+      expect(result).toEqual({
+        userId: "existing-user-uuid-2",
+        isNewUser: false,
+      });
+      expect(dbService.query).toHaveBeenCalledWith(
+        expect.stringMatching(/INSERT INTO auth_identities/i),
+        ["existing-user-uuid-2", "google", "google-id-777"],
+      );
+    });
+
+    it("should create new user and identity inside transaction for completely new OAuth user", async () => {
+      // 1st query: findIdentity -> null
+      dbService.query.mockResolvedValueOnce({
+        rows: [],
+        rowCount: 0,
+        command: "SELECT",
+        oid: 0,
+        fields: [],
+      });
+
+      // 2nd query: findUserByEmail -> null
+      dbService.query.mockResolvedValueOnce({
+        rows: [],
+        rowCount: 0,
+        command: "SELECT",
+        oid: 0,
+        fields: [],
+      });
+
+      // Mock transaction execution callback
+      dbService.transaction.mockImplementationOnce(async (cb: any) => {
+        const mockClient = {
+          query: jest
+            .fn()
+            .mockResolvedValueOnce({
+              rows: [{ id: "new-user-uuid-3" }],
+              rowCount: 1,
+            })
+            .mockResolvedValueOnce({
+              rows: [],
+              rowCount: 1,
+            }),
+        };
+        return cb(mockClient);
+      });
+
+      const result = await repository.findOrCreateIdentity(oauthPayload);
+
+      expect(result).toEqual({
+        userId: "new-user-uuid-3",
+        isNewUser: true,
+      });
+      expect(dbService.transaction).toHaveBeenCalled();
     });
   });
 });

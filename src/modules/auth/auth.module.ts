@@ -7,6 +7,8 @@ import envConfig from "@/config/env.config";
 import { ConfigType } from "@nestjs/config";
 import { JwtStrategy } from "@/modules/auth/strategies/jwt.strategy";
 import { JwtAuthGuard } from "@/modules/auth/guards/jwt-auth.guard";
+import { GoogleAuthGuard } from "@/modules/auth/guards/google-auth.guard";
+import { GoogleStrategy } from "@/modules/auth/strategies/google.strategy";
 
 @Module({
   imports: [
@@ -21,6 +23,13 @@ import { JwtAuthGuard } from "@/modules/auth/guards/jwt-auth.guard";
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthRepository, JwtStrategy, JwtAuthGuard],
+  providers: [
+    AuthService,
+    AuthRepository,
+    JwtStrategy,
+    JwtAuthGuard,
+    GoogleAuthGuard,
+    GoogleStrategy,
+  ],
 })
 export class AuthModule {}

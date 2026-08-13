@@ -22,6 +22,7 @@ describe("AuthService", () => {
       findUserByEmail: jest.fn(),
       findUserById: jest.fn(),
       insertUser: jest.fn(),
+      findOrCreateIdentity: jest.fn(),
     };
 
     const mockLogger = {
@@ -120,7 +121,7 @@ describe("AuthService", () => {
         name: "Jane Doe",
       };
 
-      repository.findUserByEmail.mockResolvedValue([mockUserRecord]);
+      repository.findUserByEmail.mockResolvedValue(mockUserRecord);
       jwtService.signAsync.mockResolvedValue("mocked_jwt_access_token_123");
 
       const result = await service.login(loginPayload);
@@ -140,7 +141,7 @@ describe("AuthService", () => {
         password: "Password123!",
       };
 
-      repository.findUserByEmail.mockResolvedValue([]);
+      repository.findUserByEmail.mockResolvedValue(null);
 
       await expect(service.login(loginPayload)).rejects.toThrow(
         new NotFoundException("User not found!"),
@@ -163,7 +164,7 @@ describe("AuthService", () => {
         name: "Jane Doe",
       };
 
-      repository.findUserByEmail.mockResolvedValue([mockUserRecord]);
+      repository.findUserByEmail.mockResolvedValue(mockUserRecord);
 
       await expect(service.login(loginPayload)).rejects.toThrow(
         new UnauthorizedException("Invalid credentials!"),
@@ -180,7 +181,7 @@ describe("AuthService", () => {
         name: "Jane Doe",
       };
 
-      repository.findUserById.mockResolvedValue([mockUserRecord]);
+      repository.findUserById.mockResolvedValue(mockUserRecord);
 
       const result = await service.me("user-uuid-101");
 
@@ -194,11 +195,38 @@ describe("AuthService", () => {
     });
 
     it("should throw NotFoundException if user ID is not found", async () => {
-      repository.findUserById.mockResolvedValue([]);
+      repository.findUserById.mockResolvedValue(null);
 
       await expect(service.me("invalid-id")).rejects.toThrow(
         new NotFoundException("User not found!"),
       );
+    });
+  });
+
+  describe("findOrCreateIdentity", () => {
+    it("should find or create identity and issue access token for OAuth user", async () => {
+      const oauthPayload = {
+        provider: "google",
+        id: "google-id-888",
+        email: "oauthuser@example.com",
+        name: "OAuth User",
+      };
+
+      repository.findOrCreateIdentity.mockResolvedValue({
+        userId: "user-uuid-oauth-999",
+        isNewUser: true,
+      });
+      jwtService.signAsync.mockResolvedValue("jwt_token_oauth_abc");
+
+      const result = await service.findOrCreateIdentity(oauthPayload);
+
+      expect(repository.findOrCreateIdentity).toHaveBeenCalledWith(
+        oauthPayload,
+      );
+      expect(jwtService.signAsync).toHaveBeenCalledWith({
+        sub: "user-uuid-oauth-999",
+      });
+      expect(result).toEqual({ access_token: "jwt_token_oauth_abc" });
     });
   });
 });

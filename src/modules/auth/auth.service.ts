@@ -29,14 +29,14 @@ export class AuthService {
   async login(payload: LoginDto) {
     const user = await this.repository.findUserByEmail(payload.email);
 
-    if (user.length === 0) throw new NotFoundException("User not found!");
+    if (!user) throw new NotFoundException("User not found!");
 
-    const verified = await verify(user[0].password, payload.password);
+    const verified = await verify(user.password, payload.password);
 
     if (!verified) throw new UnauthorizedException("Invalid credentials!");
 
     const accessToken = await this.jwtService.signAsync({
-      sub: user[0].id,
+      sub: user.id,
     });
 
     return {
@@ -47,14 +47,31 @@ export class AuthService {
   async me(id: string) {
     const user = await this.repository.findUserById(id);
 
-    if (user.length === 0) throw new NotFoundException("User not found!");
+    if (!user) throw new NotFoundException("User not found!");
 
-    const { id: ID, email, name } = user[0];
+    const { id: ID, email, name } = user;
 
     return {
       id: ID,
       email,
       name,
+    };
+  }
+
+  async findOrCreateIdentity(payload: {
+    provider: string;
+    id: string;
+    email: string;
+    name: string;
+  }) {
+    const result = await this.repository.findOrCreateIdentity(payload);
+
+    const accessToken = await this.jwtService.signAsync({
+      sub: result.userId,
+    });
+
+    return {
+      access_token: accessToken,
     };
   }
 }

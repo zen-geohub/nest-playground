@@ -16,8 +16,11 @@ import { AllExceptionFilter } from "@/core/filters/all-exception.filter";
       isGlobal: true,
       envFilePath: [".env.local", ".env"],
       validationSchema: Joi.object({
+        BASE_URL: Joi.string().required(),
         DATABASE_URL: Joi.string().required(),
         ACCESS_SECRET: Joi.string().required(),
+        GOOGLE_CLIENT_ID: Joi.string().required(),
+        GOOGLE_CLIENT_SECRET: Joi.string().required(),
       }),
       load: [databaseConfig, envConfig],
     }),

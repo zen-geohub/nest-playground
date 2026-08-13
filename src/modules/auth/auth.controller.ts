@@ -2,6 +2,7 @@ import { ValidationPipe } from "@/core/pipes/validation.pipe";
 import { AuthService } from "@/modules/auth/auth.service";
 import { CurrentUser } from "@/modules/auth/decorators/current-user.decorator";
 import type { CreateUserDto, LoginDto } from "@/modules/auth/dto";
+import { GoogleAuthGuard } from "@/modules/auth/guards/google-auth.guard";
 import { JwtAuthGuard } from "@/modules/auth/guards/jwt-auth.guard";
 import { CreateUserSchema, LoginSchema } from "@/modules/auth/schemas";
 import {
@@ -41,6 +42,23 @@ export class AuthController {
   @HttpCode(200)
   me(@CurrentUser() user: { id: string }) {
     const result = this.authService.me(user.id);
+
+    return result;
+  }
+
+  @Get("/google")
+  @UseGuards(GoogleAuthGuard)
+  googleLogin() {}
+
+  @Get("/google/callback")
+  @UseGuards(GoogleAuthGuard)
+  googleCallback(
+    @CurrentUser() user: { id: string; email: string; name: string },
+  ) {
+    const result = this.authService.findOrCreateIdentity({
+      ...user,
+      provider: "google",
+    });
 
     return result;
   }

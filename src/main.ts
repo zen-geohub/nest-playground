@@ -8,6 +8,8 @@ async function bootstrap() {
     bufferLogs: true,
   });
   app.useLogger(app.get(Logger));
+
   await app.listen(process.env.PORT ?? 3000);
+  console.log(await app.getUrl());
 }
 void bootstrap();
