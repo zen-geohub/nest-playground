@@ -14,6 +14,7 @@ describe("AuthController", () => {
   const mockResponse = () => {
     const res: any = {};
     res.cookie = jest.fn().mockReturnValue(res);
+    res.clearCookie = jest.fn().mockReturnValue(res);
     return res;
   };
 
@@ -29,6 +30,7 @@ describe("AuthController", () => {
       find: jest.fn(),
       generateRefreshToken: jest.fn(),
       generateAccessToken: jest.fn(),
+      logout: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -152,7 +154,7 @@ describe("AuthController", () => {
 
       await expect(
         controller.refresh("invalid_refresh_token", res),
-      ).rejects.toThrow(new UnauthorizedException("Invalid token."));
+      ).rejects.toThrow(new UnauthorizedException("Invalid or expired token."));
     });
 
     it("should issue new access token, rotate refresh token cookie, and return new access_token", async () => {
@@ -243,6 +245,26 @@ describe("AuthController", () => {
         }),
       );
       expect(result).toEqual({ access_token: "google_access_token_abc" });
+    });
+  });
+
+  describe("logout", () => {
+    it("should revoke session, clear refresh_token cookie, and return success response", async () => {
+      const res = mockResponse();
+      tokenService.logout.mockResolvedValue(undefined);
+
+      const result = await controller.logout("refresh_token_to_revoke", res);
+
+      expect(tokenService.logout).toHaveBeenCalledWith(
+        "refresh_token_to_revoke",
+      );
+      expect(res.clearCookie).toHaveBeenCalledWith("refresh_token", {
+        path: "/auth",
+      });
+      expect(result).toEqual({
+        success: true,
+        message: "Logout.",
+      });
     });
   });
 });

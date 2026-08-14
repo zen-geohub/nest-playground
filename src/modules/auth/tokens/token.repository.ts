@@ -38,7 +38,7 @@ export class TokenRepository {
     }>(
       `SELECT user_id, expires_at, revoked_at
       FROM user_sessions
-      WHERE token = $1`,
+      WHERE token = $1 AND revoked_at IS NULL`,
       [token],
     );
 

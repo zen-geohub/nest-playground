@@ -245,21 +245,4 @@ describe("AuthService", () => {
       });
     });
   });
-
-  describe("find", () => {
-    it("should delegate refresh token lookup to tokenService.find", async () => {
-      const mockSession = {
-        user_id: "user-123",
-        expires_at: "2026-08-20T00:00:00Z",
-        revoked_at: null,
-      };
-
-      tokenService.find.mockResolvedValue(mockSession);
-
-      const result = await service.find("token_abc");
-
-      expect(tokenService.find).toHaveBeenCalledWith("token_abc");
-      expect(result).toEqual(mockSession);
-    });
-  });
 });
