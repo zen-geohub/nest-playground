@@ -59,6 +59,7 @@ export class AuthController {
   }
 
   @Post("/refresh")
+  @HttpCode(200)
   async refresh(
     @Cookies("refresh_token") refreshToken: string,
     @Res({ passthrough: true }) response: Response,
@@ -67,7 +68,7 @@ export class AuthController {
 
     const active = await this.tokenService.find(refreshToken);
 
-    if (!active) throw new UnauthorizedException("Invalid token.");
+    if (!active) throw new UnauthorizedException("Invalid or expired token.");
 
     const newRefreshToken = await this.tokenService.generateRefreshToken(
       active.user_id,
@@ -122,6 +123,22 @@ export class AuthController {
 
     return {
       access_token,
+    };
+  }
+
+  @Post("/logout")
+  @HttpCode(200)
+  async logout(
+    @Cookies("refresh_token") refreshToken: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.tokenService.logout(refreshToken);
+
+    response.clearCookie("refresh_token", { path: "/auth" });
+
+    return {
+      success: true,
+      message: "Logout.",
     };
   }
 }

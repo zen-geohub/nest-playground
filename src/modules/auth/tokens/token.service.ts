@@ -28,4 +28,9 @@ export class TokenService {
     const hashedToken = this.hashRefreshToken(token);
     return await this.repository.findToken(hashedToken);
   }
+
+  async logout(token: string) {
+    const hashedToken = this.hashRefreshToken(token);
+    await this.repository.revokeToken(hashedToken);
+  }
 }

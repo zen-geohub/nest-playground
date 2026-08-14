@@ -81,8 +81,4 @@ export class AuthService {
       refresh_token: refreshToken,
     };
   }
-
-  async find(token: string) {
-    return await this.tokenService.find(token);
-  }
 }

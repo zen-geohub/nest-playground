@@ -108,4 +108,17 @@ describe("TokenService", () => {
       expect(result).toBeNull();
     });
   });
+
+  describe("logout", () => {
+    it("should hash the raw refresh token and revoke token in repository", async () => {
+      const rawToken = "raw_refresh_token_to_logout";
+      const expectedHash = service.hashRefreshToken(rawToken);
+
+      repository.revokeToken.mockResolvedValue(undefined);
+
+      await service.logout(rawToken);
+
+      expect(repository.revokeToken).toHaveBeenCalledWith(expectedHash);
+    });
+  });
 });
