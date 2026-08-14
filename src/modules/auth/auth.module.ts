@@ -9,6 +9,8 @@ import { JwtStrategy } from "@/modules/auth/strategies/jwt.strategy";
 import { JwtAuthGuard } from "@/modules/auth/guards/jwt-auth.guard";
 import { GoogleAuthGuard } from "@/modules/auth/guards/google-auth.guard";
 import { GoogleStrategy } from "@/modules/auth/strategies/google.strategy";
+import { TokenService } from "@/modules/auth/tokens/token.service";
+import { TokenRepository } from "@/modules/auth/tokens/token.repository";
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { GoogleStrategy } from "@/modules/auth/strategies/google.strategy";
   providers: [
     AuthService,
     AuthRepository,
+    TokenService,
+    TokenRepository,
     JwtStrategy,
     JwtAuthGuard,
     GoogleAuthGuard,

@@ -5,17 +5,17 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PinoLogger } from "nestjs-pino";
 import { AuthRepository } from "./auth.repository";
 import { AuthService } from "./auth.service";
 import { CreateUserDto, LoginDto } from "./dto";
+import { TokenService } from "./tokens/token.service";
 
 describe("AuthService", () => {
   let service: AuthService;
   let repository: jest.Mocked<AuthRepository>;
-  let jwtService: jest.Mocked<JwtService>;
+  let tokenService: jest.Mocked<TokenService>;
 
   beforeEach(async () => {
     const mockRepository = {
@@ -29,8 +29,10 @@ describe("AuthService", () => {
       setContext: jest.fn(),
     };
 
-    const mockJwtService = {
-      signAsync: jest.fn(),
+    const mockTokenService = {
+      generateAccessToken: jest.fn(),
+      generateRefreshToken: jest.fn(),
+      find: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -45,15 +47,15 @@ describe("AuthService", () => {
           useValue: mockLogger,
         },
         {
-          provide: JwtService,
-          useValue: mockJwtService,
+          provide: TokenService,
+          useValue: mockTokenService,
         },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
     repository = module.get(AuthRepository);
-    jwtService = module.get(JwtService);
+    tokenService = module.get(TokenService);
   });
 
   it("should be defined", () => {
@@ -105,7 +107,7 @@ describe("AuthService", () => {
   });
 
   describe("login", () => {
-    it("should authenticate valid user and return access_token", async () => {
+    it("should authenticate valid user and return access_token and refresh_token", async () => {
       const plainPassword = "MySecretPassword123!";
       const hashedPassword = await hash(plainPassword);
 
@@ -122,17 +124,24 @@ describe("AuthService", () => {
       };
 
       repository.findUserByEmail.mockResolvedValue(mockUserRecord);
-      jwtService.signAsync.mockResolvedValue("mocked_jwt_access_token_123");
+      tokenService.generateAccessToken.mockResolvedValue("access_token_123");
+      tokenService.generateRefreshToken.mockResolvedValue("refresh_token_abc");
 
       const result = await service.login(loginPayload);
 
       expect(repository.findUserByEmail).toHaveBeenCalledWith(
         "user@example.com",
       );
-      expect(jwtService.signAsync).toHaveBeenCalledWith({
+      expect(tokenService.generateAccessToken).toHaveBeenCalledWith({
         sub: "user-uuid-101",
       });
-      expect(result).toEqual({ access_token: "mocked_jwt_access_token_123" });
+      expect(tokenService.generateRefreshToken).toHaveBeenCalledWith(
+        "user-uuid-101",
+      );
+      expect(result).toEqual({
+        access_token: "access_token_123",
+        refresh_token: "refresh_token_abc",
+      });
     });
 
     it("should throw NotFoundException if user email does not exist", async () => {
@@ -204,7 +213,7 @@ describe("AuthService", () => {
   });
 
   describe("findOrCreateIdentity", () => {
-    it("should find or create identity and issue access token for OAuth user", async () => {
+    it("should find or create identity and issue access and refresh tokens for OAuth user", async () => {
       const oauthPayload = {
         provider: "google",
         id: "google-id-888",
@@ -216,17 +225,41 @@ describe("AuthService", () => {
         userId: "user-uuid-oauth-999",
         isNewUser: true,
       });
-      jwtService.signAsync.mockResolvedValue("jwt_token_oauth_abc");
+      tokenService.generateAccessToken.mockResolvedValue("access_oauth_123");
+      tokenService.generateRefreshToken.mockResolvedValue("refresh_oauth_abc");
 
       const result = await service.findOrCreateIdentity(oauthPayload);
 
       expect(repository.findOrCreateIdentity).toHaveBeenCalledWith(
         oauthPayload,
       );
-      expect(jwtService.signAsync).toHaveBeenCalledWith({
+      expect(tokenService.generateAccessToken).toHaveBeenCalledWith({
         sub: "user-uuid-oauth-999",
       });
-      expect(result).toEqual({ access_token: "jwt_token_oauth_abc" });
+      expect(tokenService.generateRefreshToken).toHaveBeenCalledWith(
+        "user-uuid-oauth-999",
+      );
+      expect(result).toEqual({
+        access_token: "access_oauth_123",
+        refresh_token: "refresh_oauth_abc",
+      });
+    });
+  });
+
+  describe("find", () => {
+    it("should delegate refresh token lookup to tokenService.find", async () => {
+      const mockSession = {
+        user_id: "user-123",
+        expires_at: "2026-08-20T00:00:00Z",
+        revoked_at: null,
+      };
+
+      tokenService.find.mockResolvedValue(mockSession);
+
+      const result = await service.find("token_abc");
+
+      expect(tokenService.find).toHaveBeenCalledWith("token_abc");
+      expect(result).toEqual(mockSession);
     });
   });
 });

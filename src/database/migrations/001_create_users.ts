@@ -40,7 +40,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     },
     user_id: {
       type: "uuid",
-      references: '"users"',
+      references: "users(id)",
       onDelete: "CASCADE",
       notNull: true,
     },
@@ -63,9 +63,40 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       default: pgm.func("NOW()"),
     },
   });
+
+  pgm.createTable("user_sessions", {
+    id: {
+      type: "uuid",
+      primaryKey: true,
+      default: pgm.func("uuidv7()"),
+    },
+    user_id: {
+      type: "uuid",
+      references: "users(id)",
+      onDelete: "CASCADE",
+      notNull: true,
+    },
+    token: {
+      type: "text",
+      notNull: true,
+    },
+    expires_at: {
+      type: "timestamptz",
+      notNull: true,
+    },
+    created_at: {
+      type: "timestamptz",
+      notNull: true,
+      default: pgm.func("NOW()"),
+    },
+    revoked_at: {
+      type: "timestamptz",
+    },
+  });
 }
 
 export async function down(pgm: MigrationBuilder): Promise<void> {
+  pgm.dropTable("user_sessions");
   pgm.dropTable("auth_identities");
   pgm.dropTable("users");
 }

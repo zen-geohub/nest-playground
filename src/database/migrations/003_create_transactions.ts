@@ -10,13 +10,13 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     },
     account_id: {
       type: "uuid",
-      references: '"accounts"',
+      references: "accounts(id)",
       onDelete: "RESTRICT",
       notNull: true,
     },
     user_id: {
       type: "uuid",
-      references: '"users"',
+      references: "users(id)",
       onDelete: "RESTRICT",
       notNull: true,
     },
