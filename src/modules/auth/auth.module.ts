@@ -11,6 +11,9 @@ import { GoogleAuthGuard } from "@/modules/auth/guards/google-auth.guard";
 import { GoogleStrategy } from "@/modules/auth/strategies/google.strategy";
 import { TokenService } from "@/modules/auth/tokens/token.service";
 import { TokenRepository } from "@/modules/auth/tokens/token.repository";
+import { SessionRepository } from "@/modules/auth/sessions/session.repository";
+import { SessionService } from "@/modules/auth/sessions/session.service";
+import { EmailModule } from "@/modules/email/email.module";
 
 @Module({
   imports: [
@@ -23,11 +26,14 @@ import { TokenRepository } from "@/modules/auth/tokens/token.repository";
         },
       }),
     }),
+    EmailModule,
   ],
   controllers: [AuthController],
   providers: [
     AuthService,
     AuthRepository,
+    SessionService,
+    SessionRepository,
     TokenService,
     TokenRepository,
     JwtStrategy,

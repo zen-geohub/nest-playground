@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/require-await */
 import { DatabaseService } from "../../../database/database.service";
+import { BadRequestException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { TokenRepository } from "./token.repository";
 
@@ -16,10 +17,7 @@ describe("TokenRepository", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TokenRepository,
-        {
-          provide: DatabaseService,
-          useValue: mockDbService,
-        },
+        { provide: DatabaseService, useValue: mockDbService },
       ],
     }).compile();
 
@@ -32,7 +30,61 @@ describe("TokenRepository", () => {
   });
 
   describe("insert", () => {
-    it("should execute transaction to delete old user sessions and insert new session", async () => {
+    it("should insert user token record into user_tokens table", async () => {
+      dbService.query.mockResolvedValueOnce({
+        rows: [],
+        rowCount: 1,
+        command: "INSERT",
+        oid: 0,
+        fields: [],
+      });
+
+      const expiryDate = new Date();
+      await repository.insert(
+        "user-123",
+        "email_verification",
+        "hashed_token",
+        expiryDate,
+      );
+
+      expect(dbService.query).toHaveBeenCalledWith(
+        expect.stringMatching(/INSERT INTO user_tokens/i),
+        expect.any(Array),
+      );
+    });
+  });
+
+  describe("delete", () => {
+    it("should delete all tokens associated with user_id", async () => {
+      dbService.query.mockResolvedValueOnce({
+        rows: [],
+        rowCount: 1,
+        command: "DELETE",
+        oid: 0,
+        fields: [],
+      });
+
+      await repository.delete("user-123");
+
+      expect(dbService.query).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /DELETE\s+FROM\s+user_tokens\s+WHERE\s+user_id\s*=\s*\$1/i,
+        ),
+        ["user-123"],
+      );
+    });
+  });
+
+  describe("verify", () => {
+    it("should execute transaction updating used_at and email_verified_at when valid token is found", async () => {
+      dbService.query.mockResolvedValueOnce({
+        rows: [{ user_id: "user-123" }],
+        rowCount: 1,
+        command: "SELECT",
+        oid: 0,
+        fields: [],
+      });
+
       dbService.transaction.mockImplementationOnce(async (cb: any) => {
         const mockClient = {
           query: jest.fn().mockResolvedValue({ rows: [], rowCount: 1 }),
@@ -40,41 +92,18 @@ describe("TokenRepository", () => {
         return cb(mockClient);
       });
 
-      const expiryDate = new Date();
-      await repository.insert("user-123", "hashed_token_abc", expiryDate);
-
-      expect(dbService.transaction).toHaveBeenCalled();
-    });
-  });
-
-  describe("findToken", () => {
-    it("should return token session record if active token is found", async () => {
-      const mockRow = {
-        user_id: "user-123",
-        expires_at: "2026-08-20T00:00:00Z",
-        revoked_at: null,
-      };
-
-      dbService.query.mockResolvedValueOnce({
-        rows: [mockRow],
-        rowCount: 1,
-        command: "SELECT",
-        oid: 0,
-        fields: [],
-      });
-
-      const result = await repository.findToken("hashed_token_abc");
+      await repository.verify("hashed_valid_token");
 
       expect(dbService.query).toHaveBeenCalledWith(
         expect.stringMatching(
-          /SELECT\s+user_id,\s*expires_at,\s*revoked_at\s+FROM\s+user_sessions/i,
+          /SELECT\s+\*\s+FROM\s+user_tokens\s+WHERE\s+token\s*=\s*\$1/i,
         ),
-        ["hashed_token_abc"],
+        ["hashed_valid_token", "email_verification"],
       );
-      expect(result).toEqual(mockRow);
+      expect(dbService.transaction).toHaveBeenCalled();
     });
 
-    it("should return null if token is not found in database", async () => {
+    it("should throw BadRequestException if token is missing, expired, or already used", async () => {
       dbService.query.mockResolvedValueOnce({
         rows: [],
         rowCount: 0,
@@ -83,51 +112,9 @@ describe("TokenRepository", () => {
         fields: [],
       });
 
-      const result = await repository.findToken("nonexistent_hash");
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("revokeToken", () => {
-    it("should set revoked_at timestamp for specified token", async () => {
-      dbService.query.mockResolvedValueOnce({
-        rows: [],
-        rowCount: 1,
-        command: "UPDATE",
-        oid: 0,
-        fields: [],
-      });
-
-      await repository.revokeToken("hashed_token_abc");
-
-      expect(dbService.query).toHaveBeenCalledWith(
-        expect.stringMatching(
-          /UPDATE\s+user_sessions\s+SET\s+revoked_at\s*=\s*NOW\(\)/i,
-        ),
-        ["hashed_token_abc"],
-      );
-    });
-  });
-
-  describe("revokeAllSessions", () => {
-    it("should set revoked_at timestamp for all active sessions of a user", async () => {
-      dbService.query.mockResolvedValueOnce({
-        rows: [],
-        rowCount: 2,
-        command: "UPDATE",
-        oid: 0,
-        fields: [],
-      });
-
-      await repository.revokeAllSessions("user-123");
-
-      expect(dbService.query).toHaveBeenCalledWith(
-        expect.stringMatching(
-          /UPDATE\s+user_sessions\s+SET\s+revoked_at\s*=\s*NOW\(\)/i,
-        ),
-        ["user-123"],
-      );
+      await expect(
+        repository.verify("invalid_or_expired_token"),
+      ).rejects.toThrow(new BadRequestException("Invalid or expired token."));
     });
   });
 });

@@ -10,27 +10,43 @@ export class TokenService {
     private repository: TokenRepository,
   ) {}
 
-  async generateAccessToken(payload: { sub: string }) {
-    return await this.jwtService.signAsync(payload);
-  }
+  async generateVerificationToken(id: string) {
+    const token = this.generateOpaqueToken();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-  async generateRefreshToken(id: string) {
-    const token = randomBytes(64).toString("hex");
-    await this.repository.insert(id, this.hashRefreshToken(token));
+    await this.repository.insert(
+      id,
+      "email_verification",
+      this.hashToken(token),
+      expiresAt,
+    );
+
     return token;
   }
 
-  hashRefreshToken(token: string) {
+  async resendVerificationToken(id: string) {
+    await this.repository.delete(id);
+
+    const token = await this.generateVerificationToken(id);
+
+    return token;
+  }
+
+  async verifyToken(token: string) {
+    const hashed = this.hashToken(token);
+    await this.repository.verify(hashed);
+
+    return {
+      success: true,
+      message: "Email verified.",
+    };
+  }
+
+  hashToken(token: string) {
     return createHash("sha256").update(token).digest("hex");
   }
 
-  async find(token: string) {
-    const hashedToken = this.hashRefreshToken(token);
-    return await this.repository.findToken(hashedToken);
-  }
-
-  async logout(token: string) {
-    const hashedToken = this.hashRefreshToken(token);
-    await this.repository.revokeToken(hashedToken);
+  generateOpaqueToken() {
+    return randomBytes(64).toString("hex");
   }
 }
