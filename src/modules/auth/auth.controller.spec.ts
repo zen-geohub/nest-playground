@@ -4,12 +4,16 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { CreateUserDto, LoginDto } from "./dto";
+import { SessionService } from "./sessions/session.service";
 import { TokenService } from "./tokens/token.service";
+import { EmailService } from "../email/email.service";
 
 describe("AuthController", () => {
   let controller: AuthController;
   let authService: jest.Mocked<AuthService>;
   let tokenService: jest.Mocked<TokenService>;
+  let sessionService: jest.Mocked<SessionService>;
+  let emailService: jest.Mocked<EmailService>;
 
   const mockResponse = () => {
     const res: any = {};
@@ -24,32 +28,39 @@ describe("AuthController", () => {
       login: jest.fn(),
       me: jest.fn(),
       findOrCreateIdentity: jest.fn(),
+      resendVerifEmail: jest.fn(),
     };
 
     const mockTokenService = {
+      verifyToken: jest.fn(),
+    };
+
+    const mockSessionService = {
       find: jest.fn(),
       generateRefreshToken: jest.fn(),
       generateAccessToken: jest.fn(),
       logout: jest.fn(),
     };
 
+    const mockEmailService = {
+      sendVerificationEmail: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
-        {
-          provide: AuthService,
-          useValue: mockAuthService,
-        },
-        {
-          provide: TokenService,
-          useValue: mockTokenService,
-        },
+        { provide: AuthService, useValue: mockAuthService },
+        { provide: TokenService, useValue: mockTokenService },
+        { provide: SessionService, useValue: mockSessionService },
+        { provide: EmailService, useValue: mockEmailService },
       ],
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
     authService = module.get(AuthService);
     tokenService = module.get(TokenService);
+    sessionService = module.get(SessionService);
+    emailService = module.get(EmailService);
   });
 
   it("should be defined", () => {
@@ -57,24 +68,24 @@ describe("AuthController", () => {
   });
 
   describe("register", () => {
-    it("should process registration payload and return creation response", async () => {
+    it("should process registration payload, send verification email, and return token", async () => {
       const payload: CreateUserDto = {
         name: "Test User",
         email: "test@example.com",
         password: "Password123!",
       };
 
-      const mockResult = {
-        success: true,
-        message: "Successfully register new account.",
-      };
-
-      authService.create.mockResolvedValue(mockResult);
+      authService.create.mockResolvedValue({ token: "verif_token_123" });
+      emailService.sendVerificationEmail.mockResolvedValue(true);
 
       const result = await controller.register(payload);
 
       expect(authService.create).toHaveBeenCalledWith(payload);
-      expect(result).toEqual(mockResult);
+      expect(emailService.sendVerificationEmail).toHaveBeenCalledWith(
+        "test@example.com",
+        "verif_token_123",
+      );
+      expect(result).toEqual({ token: "verif_token_123" });
     });
 
     it("should propagate ConflictException if registration fails due to existing email", async () => {
@@ -91,6 +102,40 @@ describe("AuthController", () => {
       await expect(controller.register(payload)).rejects.toThrow(
         ConflictException,
       );
+    });
+  });
+
+  describe("verifyEmail", () => {
+    it("should delegate token verification to tokenService.verifyToken", async () => {
+      const mockResult = { success: true, message: "Email verified." };
+      tokenService.verifyToken.mockResolvedValue(mockResult);
+
+      const result = await controller.verifyEmail({ token: "valid_token" });
+
+      expect(tokenService.verifyToken).toHaveBeenCalledWith("valid_token");
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe("resendVerification", () => {
+    it("should generate new token, send email, and return token", async () => {
+      authService.resendVerifEmail.mockResolvedValue({
+        token: "new_token_456",
+      });
+      emailService.sendVerificationEmail.mockResolvedValue(true);
+
+      const result = await controller.resendVerification({
+        email: "user@example.com",
+      });
+
+      expect(authService.resendVerifEmail).toHaveBeenCalledWith(
+        "user@example.com",
+      );
+      expect(emailService.sendVerificationEmail).toHaveBeenCalledWith(
+        "user@example.com",
+        "new_token_456",
+      );
+      expect(result).toEqual({ token: "new_token_456" });
     });
   });
 
@@ -150,7 +195,7 @@ describe("AuthController", () => {
 
     it("should throw UnauthorizedException if refresh token is invalid or expired", async () => {
       const res = mockResponse();
-      tokenService.find.mockResolvedValue(null);
+      sessionService.find.mockResolvedValue(null);
 
       await expect(
         controller.refresh("invalid_refresh_token", res),
@@ -160,28 +205,30 @@ describe("AuthController", () => {
     it("should issue new access token, rotate refresh token cookie, and return new access_token", async () => {
       const res = mockResponse();
 
-      tokenService.find.mockResolvedValue({
+      sessionService.find.mockResolvedValue({
         user_id: "user-123",
-        expires_at: "2026-08-20T00:00:00Z",
+        expires_at: "2026-08-22T00:00:00Z",
         revoked_at: null,
       });
 
-      tokenService.generateRefreshToken.mockResolvedValue(
+      sessionService.generateRefreshToken.mockResolvedValue(
         "new_refresh_token_999",
       );
-      tokenService.generateAccessToken.mockResolvedValue(
+      sessionService.generateAccessToken.mockResolvedValue(
         "new_access_token_777",
       );
 
       const result = await controller.refresh("valid_old_refresh_token", res);
 
-      expect(tokenService.find).toHaveBeenCalledWith("valid_old_refresh_token");
-      expect(tokenService.generateRefreshToken).toHaveBeenCalledWith(
+      expect(sessionService.find).toHaveBeenCalledWith(
+        "valid_old_refresh_token",
+      );
+      expect(sessionService.generateRefreshToken).toHaveBeenCalledWith(
         "user-123",
       );
-      expect(tokenService.generateAccessToken).toHaveBeenCalledWith({
-        sub: "user-123",
-      });
+      expect(sessionService.generateAccessToken).toHaveBeenCalledWith(
+        "user-123",
+      );
       expect(res.cookie).toHaveBeenCalledWith(
         "refresh_token",
         "new_refresh_token_999",
@@ -251,11 +298,11 @@ describe("AuthController", () => {
   describe("logout", () => {
     it("should revoke session, clear refresh_token cookie, and return success response", async () => {
       const res = mockResponse();
-      tokenService.logout.mockResolvedValue(undefined);
+      sessionService.logout.mockResolvedValue(undefined);
 
       const result = await controller.logout("refresh_token_to_revoke", res);
 
-      expect(tokenService.logout).toHaveBeenCalledWith(
+      expect(sessionService.logout).toHaveBeenCalledWith(
         "refresh_token_to_revoke",
       );
       expect(res.clearCookie).toHaveBeenCalledWith("refresh_token", {

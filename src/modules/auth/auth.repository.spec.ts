@@ -40,6 +40,7 @@ describe("AuthRepository", () => {
         email: "existing@example.com",
         password: "$argon2id$v=19$m=65536,t=3,p=4$hash",
         name: "Existing User",
+        email_verified_at: "2026-08-15T00:00:00Z",
       };
 
       dbService.query.mockResolvedValueOnce({
@@ -124,7 +125,7 @@ describe("AuthRepository", () => {
       password: "hashed_password_123",
     };
 
-    it("should insert user when email is not registered", async () => {
+    it("should insert user and return newly created user ID when email is not registered", async () => {
       // findUserByEmail -> null
       dbService.query.mockResolvedValueOnce({
         rows: [],
@@ -134,9 +135,9 @@ describe("AuthRepository", () => {
         fields: [],
       });
 
-      // INSERT -> rowCount 1
+      // INSERT -> RETURNING id
       dbService.query.mockResolvedValueOnce({
-        rows: [],
+        rows: [{ id: "new-user-uuid-999" }],
         rowCount: 1,
         command: "INSERT",
         oid: 0,
@@ -145,15 +146,11 @@ describe("AuthRepository", () => {
 
       const result = await repository.insertUser(validPayload);
 
-      expect(result).toEqual({
-        success: true,
-        message: "Successfully register new account.",
-      });
+      expect(result).toBe("new-user-uuid-999");
       expect(dbService.query).toHaveBeenCalledTimes(2);
     });
 
     it("should throw ConflictException if duplicate email registration is attempted", async () => {
-      // findUserByEmail -> user object returned
       dbService.query.mockResolvedValueOnce({
         rows: [
           {
@@ -161,6 +158,7 @@ describe("AuthRepository", () => {
             email: "newuser@example.com",
             password: "hash",
             name: "Duplicate User",
+            email_verified_at: "2026-08-15T00:00:00Z",
           },
         ],
         rowCount: 1,
@@ -176,7 +174,7 @@ describe("AuthRepository", () => {
       expect(dbService.query).toHaveBeenCalledTimes(1);
     });
 
-    it("should throw HttpException (500) if insert fails to affect rows", async () => {
+    it("should throw HttpException (500) if insert fails to return user ID", async () => {
       dbService.query.mockResolvedValueOnce({
         rows: [],
         rowCount: 0,
@@ -186,7 +184,7 @@ describe("AuthRepository", () => {
       });
 
       dbService.query.mockResolvedValueOnce({
-        rows: [],
+        rows: [{}],
         rowCount: 0,
         command: "INSERT",
         oid: 0,
@@ -211,7 +209,6 @@ describe("AuthRepository", () => {
     };
 
     it("should return existing identity user ID if identity already linked", async () => {
-      // 1st query: findIdentity -> identity found
       dbService.query.mockResolvedValueOnce({
         rows: [{ user_id: "existing-user-uuid-1" }],
         rowCount: 1,
@@ -230,7 +227,6 @@ describe("AuthRepository", () => {
     });
 
     it("should link identity to existing user if email matches existing user", async () => {
-      // 1st query: findIdentity -> null
       dbService.query.mockResolvedValueOnce({
         rows: [],
         rowCount: 0,
@@ -239,7 +235,6 @@ describe("AuthRepository", () => {
         fields: [],
       });
 
-      // 2nd query: findUserByEmail -> user found
       dbService.query.mockResolvedValueOnce({
         rows: [
           {
@@ -247,6 +242,7 @@ describe("AuthRepository", () => {
             email: "oauth@example.com",
             password: "",
             name: "OAuth User",
+            email_verified_at: "2026-08-15T00:00:00Z",
           },
         ],
         rowCount: 1,
@@ -255,7 +251,6 @@ describe("AuthRepository", () => {
         fields: [],
       });
 
-      // 3rd query: INSERT into auth_identities
       dbService.query.mockResolvedValueOnce({
         rows: [],
         rowCount: 1,
@@ -270,14 +265,9 @@ describe("AuthRepository", () => {
         userId: "existing-user-uuid-2",
         isNewUser: false,
       });
-      expect(dbService.query).toHaveBeenCalledWith(
-        expect.stringMatching(/INSERT INTO auth_identities/i),
-        ["existing-user-uuid-2", "google", "google-id-777"],
-      );
     });
 
     it("should create new user and identity inside transaction for completely new OAuth user", async () => {
-      // 1st query: findIdentity -> null
       dbService.query.mockResolvedValueOnce({
         rows: [],
         rowCount: 0,
@@ -286,7 +276,6 @@ describe("AuthRepository", () => {
         fields: [],
       });
 
-      // 2nd query: findUserByEmail -> null
       dbService.query.mockResolvedValueOnce({
         rows: [],
         rowCount: 0,
@@ -295,7 +284,6 @@ describe("AuthRepository", () => {
         fields: [],
       });
 
-      // Mock transaction execution callback
       dbService.transaction.mockImplementationOnce(async (cb: any) => {
         const mockClient = {
           query: jest

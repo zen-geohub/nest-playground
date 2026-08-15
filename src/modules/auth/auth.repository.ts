@@ -11,21 +11,23 @@ import {
 
 @Injectable()
 export class AuthRepository {
-  constructor(private db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) {}
 
   async findUserByEmail(email: string): Promise<{
     id: string;
     email: string;
     password: string;
     name: string;
+    email_verified_at: string;
   } | null> {
     const { rows } = await this.db.query<{
       id: string;
       email: string;
       password: string;
       name: string;
+      email_verified_at: string;
     }>(
-      `SELECT id, email, password, name
+      `SELECT id, email, password, name, email_verified_at
       FROM users
       WHERE LOWER(email) = LOWER($1)`,
       [email],
@@ -71,23 +73,20 @@ export class AuthRepository {
       new Set(Object.keys(schemaKeys)),
     );
 
-    const { rowCount } = await this.db.query(
+    const { rows } = await this.db.query<{ id: string }>(
       `INSERT INTO users (${columns})
       VALUES (${placeholders})
-      `,
+      RETURNING id;`,
       values,
     );
 
-    if (rowCount === 0)
+    if (!rows[0].id)
       throw new HttpException(
         "Internal server error.",
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
 
-    return {
-      success: true,
-      message: "Successfully register new account.",
-    };
+    return rows[0].id;
   }
 
   async findOrCreateIdentity({
