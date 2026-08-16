@@ -22,6 +22,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  InternalServerErrorException,
   Post,
   Query,
   Res,
@@ -33,6 +34,10 @@ import { Throttle } from "@nestjs/throttler";
 import type { Response } from "express";
 import Joi from "joi";
 
+/**
+ * Controller exposing authentication endpoints including user registration,
+ * email verification, password resets, token rotation, OAuth callback, and profile retrieval.
+ */
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -42,8 +47,14 @@ export class AuthController {
     private readonly emailService: EmailService,
   ) {}
 
+  /**
+   * Registers a new user account and dispatches an email verification token.
+   *
+   * @param payload - User registration DTO (name, email, password).
+   * @returns Object containing the generated verification token.
+   */
   @Post("register")
-  @Throttle({ defeault: { limit: 3, ttl: 60_000 } })
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @UsePipes(new ValidationPipe(CreateUserSchema))
   @HttpCode(201)
   async register(@Body() payload: CreateUserDto) {
@@ -53,6 +64,15 @@ export class AuthController {
     return { token };
   }
 
+  /**
+   * Authenticates user credentials, sets an HTTP-only refresh token cookie, and returns a short-lived access token.
+   *
+   * @param payload - Login credentials DTO (email, password).
+   * @param response - Express Response object for cookie setting.
+   * @returns Object containing the JWT access token.
+   * @throws UnauthorizedException if password verification fails.
+   * @throws NotFoundException if user email is not registered.
+   */
   @Post("login")
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @UsePipes(new ValidationPipe(LoginSchema))
@@ -76,6 +96,14 @@ export class AuthController {
     };
   }
 
+  /**
+   * Rotates an active refresh token session and issues a new access token.
+   *
+   * @param refreshToken - Raw refresh token extracted from HTTP-only cookie.
+   * @param response - Express Response object for setting the new refresh token cookie.
+   * @returns Object containing the newly issued JWT access token.
+   * @throws UnauthorizedException if the refresh token is missing, invalid, or revoked.
+   */
   @Post("refresh")
   @HttpCode(200)
   async refresh(
@@ -107,14 +135,39 @@ export class AuthController {
     };
   }
 
+  /**
+   * Verifies a user's email address using a valid verification token.
+   *
+   * @param query - Query object containing the verification token.
+   * @returns Success response object.
+   * @throws InternalServerErrorException if verification fails.
+   */
   @Get("verify-email")
   @HttpCode(200)
-  verifyEmail(
+  async verifyEmail(
     @Query(new ValidationPipe(VerifyEmailSchema)) { token }: VerifyEmailDto,
   ) {
-    return this.tokenService.verifyToken(token);
+    const verified = await this.tokenService.verifyToken(
+      token,
+      "email_verification",
+    );
+
+    if (!verified)
+      throw new InternalServerErrorException("Internal server error.");
+
+    return {
+      success: true,
+      message: "Email verified.",
+    };
   }
 
+  /**
+   * Resends an email verification link to an unverified registered user.
+   *
+   * @param payload - Object containing the user's email address.
+   * @returns Object containing the new verification token.
+   * @throws BadRequestException if the email is not found or already verified.
+   */
   @Post("resend-verification")
   @Throttle({ default: { limit: 3, ttl: 300_000 } })
   @HttpCode(200)
@@ -133,6 +186,59 @@ export class AuthController {
     return { token };
   }
 
+  /**
+   * Initiates a password reset request by generating a reset token and sending a reset email.
+   *
+   * @param payload - Object containing the user's target email address.
+   * @returns Object containing the generated password reset token.
+   */
+  @Post("forgot-password")
+  @Throttle({ default: { limit: 3, ttl: 900_000 } })
+  @HttpCode(200)
+  async forgotPassword(
+    @Body(
+      new ValidationPipe(
+        Joi.object({
+          email: Joi.string().lowercase().trim().required(),
+        }),
+      ),
+    )
+    { email }: { email: string },
+  ) {
+    const { token } = await this.authService.forgotPasswordEmail(email);
+    await this.emailService.sendForgotPasswordEmail(email, token);
+    return { token };
+  }
+
+  /**
+   * Resets a user's password using a valid password reset token.
+   *
+   * @param payload - Object containing the reset token and new password.
+   * @returns Promise resolving to update confirmation message.
+   */
+  @Post("reset-password")
+  @HttpCode(200)
+  resetPassword(
+    @Body(
+      new ValidationPipe(
+        Joi.object({
+          token: Joi.string().required(),
+          password: Joi.string().required(),
+        }),
+      ),
+    )
+    { token, password }: { token: string; password: string },
+  ) {
+    return this.authService.updateNewPassword(token, password);
+  }
+
+  /**
+   * Retrieves profile information for the currently authenticated user.
+   *
+   * @param user - Authenticated user payload extracted from JWT guard.
+   * @returns Profile details of current user.
+   * @throws NotFoundException if user profile is not found.
+   */
   @Get("me")
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
@@ -142,10 +248,20 @@ export class AuthController {
     return result;
   }
 
+  /**
+   * Initiates Google OAuth2 authentication redirect flow.
+   */
   @Get("google")
   @UseGuards(GoogleAuthGuard)
   googleLogin() {}
 
+  /**
+   * Handles Google OAuth2 authentication callback, linking/creating user identity and returning access token.
+   *
+   * @param user - OAuth profile payload extracted from GoogleAuthGuard.
+   * @param response - Express Response object for setting the refresh token cookie.
+   * @returns Object containing the JWT access token.
+   */
   @Get("google/callback")
   @UseGuards(GoogleAuthGuard)
   async googleCallback(
@@ -170,6 +286,13 @@ export class AuthController {
     };
   }
 
+  /**
+   * Logs out the user by revoking the refresh token session and clearing the refresh token cookie.
+   *
+   * @param refreshToken - Raw refresh token from cookie.
+   * @param response - Express Response object for clearing cookie.
+   * @returns Success response message.
+   */
   @Post("logout")
   @HttpCode(200)
   async logout(

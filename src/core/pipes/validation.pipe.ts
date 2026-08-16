@@ -1,9 +1,22 @@
 import { BadRequestException, Injectable, PipeTransform } from "@nestjs/common";
 import Joi from "joi";
 
+/**
+ * Custom NestJS pipe for validating and sanitizing request payloads using Joi schemas.
+ *
+ * @template T - Type of the payload being validated.
+ */
 @Injectable()
 export class ValidationPipe<T> implements PipeTransform<T> {
   constructor(private schema: Joi.ObjectSchema) {}
+
+  /**
+   * Validates incoming request values against the configured Joi schema, stripping unknown fields.
+   *
+   * @param value - Incoming payload value.
+   * @returns Validated and stripped payload object.
+   * @throws BadRequestException containing field-level validation errors if validation fails.
+   */
   transform(value: T): T {
     const validationResult = this.schema.validate(value, {
       abortEarly: false, // Collect all errors

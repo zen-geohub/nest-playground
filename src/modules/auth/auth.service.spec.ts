@@ -94,6 +94,7 @@ describe("AuthService", () => {
       );
       expect(tokenService.generateVerificationToken).toHaveBeenCalledWith(
         "user-uuid-101",
+        "email_verification",
       );
       expect(result).toEqual({ token: "verif_token_abc" });
     });
@@ -153,6 +154,7 @@ describe("AuthService", () => {
 
       expect(tokenService.resendVerificationToken).toHaveBeenCalledWith(
         "user-123",
+        "email_verification",
       );
       expect(result).toEqual({ token: "new_verif_token_xyz" });
     });

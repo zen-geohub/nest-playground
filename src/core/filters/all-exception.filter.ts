@@ -8,12 +8,21 @@ import {
 import type { Request, Response } from "express";
 import { PinoLogger } from "nestjs-pino";
 
+/**
+ * Global exception filter catching all uncaught application exceptions and formatting uniform JSON error responses.
+ */
 @Catch()
 export class AllExceptionFilter implements ExceptionFilter {
   constructor(private readonly logger: PinoLogger) {
     this.logger.setContext(AllExceptionFilter.name);
   }
 
+  /**
+   * Catches and processes unhandled exceptions across the application HTTP context.
+   *
+   * @param exception - Uncaught exception object or error value.
+   * @param host - Arguments host providing execution context details.
+   */
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const request = ctx.getRequest<Request>();

@@ -1,10 +1,20 @@
 import { DatabaseService } from "@/database/database.service";
 import { Injectable } from "@nestjs/common";
 
+/**
+ * Database repository managing active user refresh token sessions in the `user_sessions` table.
+ */
 @Injectable()
 export class SessionRepository {
   constructor(private db: DatabaseService) {}
 
+  /**
+   * Deletes existing sessions for the user and inserts a new active session inside a database transaction.
+   *
+   * @param id - User primary key UUID.
+   * @param hashedToken - SHA-256 hashed refresh token string.
+   * @param expiredAt - Expiration Date object (defaults to 7 days from now).
+   */
   async insert(
     id: string,
     hashedToken: string,
@@ -26,6 +36,12 @@ export class SessionRepository {
     });
   }
 
+  /**
+   * Queries an active unrevoked session record by hashed token.
+   *
+   * @param token - SHA-256 hashed refresh token string.
+   * @returns Session record or null if not found or revoked.
+   */
   async findToken(token: string): Promise<{
     user_id: string;
     expires_at: string;
@@ -45,6 +61,11 @@ export class SessionRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * Revokes a token session by setting `revoked_at = NOW()`.
+   *
+   * @param token - SHA-256 hashed refresh token string.
+   */
   async revokeTokenSession(token: string) {
     await this.db.query(
       `UPDATE user_sessions

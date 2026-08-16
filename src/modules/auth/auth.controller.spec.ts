@@ -112,7 +112,10 @@ describe("AuthController", () => {
 
       const result = await controller.verifyEmail({ token: "valid_token" });
 
-      expect(tokenService.verifyToken).toHaveBeenCalledWith("valid_token");
+      expect(tokenService.verifyToken).toHaveBeenCalledWith(
+        "valid_token",
+        "email_verification",
+      );
       expect(result).toEqual(mockResult);
     });
   });

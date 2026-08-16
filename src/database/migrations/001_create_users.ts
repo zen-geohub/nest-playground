@@ -98,41 +98,49 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     },
   });
 
-  pgm.createTable("user_tokens", {
-    id: {
-      type: "uuid",
-      primaryKey: true,
-      default: pgm.func("uuidv7()"),
+  pgm.createTable(
+    "user_tokens",
+    {
+      id: {
+        type: "uuid",
+        primaryKey: true,
+        default: pgm.func("uuidv7()"),
+      },
+      user_id: {
+        type: "uuid",
+        references: "users(id)",
+        onDelete: "CASCADE",
+        notNull: true,
+      },
+      type: {
+        type: "varchar(50)",
+        notNull: true,
+      },
+      token: {
+        type: "text",
+        notNull: true,
+        unique: true,
+      },
+      expires_at: {
+        type: "timestamptz",
+        notNull: true,
+      },
+      used_at: {
+        type: "timestamptz",
+        default: null,
+      },
+      created_at: {
+        type: "timestamptz",
+        notNull: true,
+        default: pgm.func("NOW()"),
+      },
     },
-    user_id: {
-      type: "uuid",
-      references: "users(id)",
-      onDelete: "CASCADE",
-      notNull: true,
+    {
+      constraints: {
+        unique: ["user_id", "type"],
+      },
     },
-    type: {
-      type: "varchar(50)",
-      notNull: true,
-    },
-    token: {
-      type: "text",
-      notNull: true,
-      unique: true,
-    },
-    expires_at: {
-      type: "timestamptz",
-      notNull: true,
-    },
-    used_at: {
-      type: "timestamptz",
-      default: null,
-    },
-    created_at: {
-      type: "timestamptz",
-      notNull: true,
-      default: pgm.func("NOW()"),
-    },
-  });
+  );
 }
 
 export async function down(pgm: MigrationBuilder): Promise<void> {

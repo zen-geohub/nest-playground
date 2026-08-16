@@ -4,6 +4,7 @@ import { ConflictException, HttpException, HttpStatus } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuthRepository } from "./auth.repository";
 import { CreateUserDto } from "./dto";
+import { TokenRepository } from "./tokens/token.repository";
 
 describe("AuthRepository", () => {
   let repository: AuthRepository;
@@ -15,12 +16,21 @@ describe("AuthRepository", () => {
       transaction: jest.fn(),
     };
 
+    const mockTokenRepository = {
+      findByToken: jest.fn(),
+      verify: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthRepository,
         {
           provide: DatabaseService,
           useValue: mockDbService,
+        },
+        {
+          provide: TokenRepository,
+          useValue: mockTokenRepository,
         },
       ],
     }).compile();

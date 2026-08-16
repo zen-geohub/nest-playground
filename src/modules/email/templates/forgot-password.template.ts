@@ -1,23 +1,23 @@
 /**
- * Parameters for rendering the email verification HTML template.
+ * Parameters for rendering the password reset HTML email template.
  */
-export interface VerificationEmailTemplateParams {
+export interface ForgotPasswordEmailTemplateParams {
   /** Optional user display name */
   name?: string;
-  /** Full email verification URL containing the token */
-  verificationUrl: string;
+  /** Full password reset URL containing the reset token */
+  resetPasswordUrl: string;
 }
 
 /**
- * Renders the HTML template for account verification emails.
+ * Renders the HTML template for password reset emails.
  *
- * @param params - Template options including optional user name and verification URL.
+ * @param params - Template options including optional user name and password reset URL.
  * @returns Formatted HTML string ready to send via email.
  */
-export function verificationEmailTemplate({
+export function forgotPasswordEmailTemplate({
   name,
-  verificationUrl,
-}: VerificationEmailTemplateParams): string {
+  resetPasswordUrl,
+}: ForgotPasswordEmailTemplateParams): string {
   return `<!DOCTYPE html>
           <html lang="en">
           <head>
@@ -29,7 +29,7 @@ export function verificationEmailTemplate({
             <meta name="color-scheme" content="light" />
             <meta name="supported-color-schemes" content="light" />
 
-            <title>Verify your email</title>
+            <title>Password reset</title>
           </head>
 
           <body
@@ -123,9 +123,8 @@ export function verificationEmailTemplate({
                             color: #4b5563;
                           "
                         >
-                          Thank you for trusting this platform to handle your account.
-                          Please verify your email address by clicking
-                          the button below.
+                          We received a request to reset the password for the user associated with this email address. 
+                          Please reset your password by clicking the button below.
                         </p>
 
                         <!-- Button -->
@@ -146,7 +145,7 @@ export function verificationEmailTemplate({
                               "
                             >
                               <a
-                                href="${verificationUrl}"
+                                href="${resetPasswordUrl}"
                                 target="_blank"
                                 style="
                                   display: inline-block;
@@ -159,7 +158,7 @@ export function verificationEmailTemplate({
                                   border-radius: 8px;
                                 "
                               >
-                                Verify Email
+                                Reset password
                               </a>
                             </td>
                           </tr>
@@ -174,7 +173,7 @@ export function verificationEmailTemplate({
                             text-align: center;
                           "
                         >
-                          This verification link will expire in
+                          This link will expire in
                           <strong>15 minutes</strong>.
                         </p>
 
@@ -200,14 +199,14 @@ export function verificationEmailTemplate({
                           "
                         >
                           <a
-                            href="${verificationUrl}"
+                            href="${resetPasswordUrl}"
                             target="_blank"
                             style="
                               color: #4b5563;
                               text-decoration: underline;
                             "
                           >
-                            ${verificationUrl}
+                            ${resetPasswordUrl}
                           </a>
                         </p>
 
@@ -227,8 +226,8 @@ export function verificationEmailTemplate({
                             color: #9ca3af;
                           "
                         >
-                          If you didn't create this account, you can
-                          safely ignore this email.
+                          If you did not request to reset this password, 
+                          you can ignore this request.
                         </p>
 
                       </td>
