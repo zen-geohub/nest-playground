@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/unbound-method */
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-argument */
 import { JwtService } from "@nestjs/jwt";
 import { Test, TestingModule } from "@nestjs/testing";
 import { TokenRepository } from "./token.repository";
@@ -15,7 +15,9 @@ describe("TokenService", () => {
 
     const mockRepository = {
       insert: jest.fn(),
+      upsert: jest.fn(),
       delete: jest.fn(),
+      findByToken: jest.fn(),
       verify: jest.fn(),
     };
 
@@ -58,7 +60,10 @@ describe("TokenService", () => {
     it("should generate token, hash it, and store in repository with email_verification type", async () => {
       repository.insert.mockResolvedValue(undefined);
 
-      const token = await service.generateVerificationToken("user-123");
+      const token = await service.generateVerificationToken(
+        "user-123",
+        "email_verification",
+      );
 
       expect(token).toBeDefined();
       expect(typeof token).toBe("string");
@@ -74,14 +79,15 @@ describe("TokenService", () => {
   });
 
   describe("resendVerificationToken", () => {
-    it("should delete existing tokens for user and generate a new verification token", async () => {
-      repository.delete.mockResolvedValue(undefined);
-      repository.insert.mockResolvedValue(undefined);
+    it("should upsert token for user and generate a new verification token", async () => {
+      repository.upsert.mockResolvedValue(undefined);
 
-      const token = await service.resendVerificationToken("user-123");
+      const token = await service.resendVerificationToken(
+        "user-123",
+        "email_verification",
+      );
 
-      expect(repository.delete).toHaveBeenCalledWith("user-123");
-      expect(repository.insert).toHaveBeenCalledWith(
+      expect(repository.upsert).toHaveBeenCalledWith(
         "user-123",
         "email_verification",
         expect.any(String),
@@ -92,18 +98,20 @@ describe("TokenService", () => {
   });
 
   describe("verifyToken", () => {
-    it("should hash token and call repository.verify", async () => {
+    it("should hash token and call repository.verify when token record exists", async () => {
       const rawToken = "raw_verification_token";
       const hashedToken = service.hashToken(rawToken);
+      repository.findByToken.mockResolvedValue({ id: "token-id-1" } as any);
       repository.verify.mockResolvedValue(undefined);
 
-      const result = await service.verifyToken(rawToken);
+      const result = await service.verifyToken(rawToken, "email_verification");
 
+      expect(repository.findByToken).toHaveBeenCalledWith(
+        hashedToken,
+        "email_verification",
+      );
       expect(repository.verify).toHaveBeenCalledWith(hashedToken);
-      expect(result).toEqual({
-        success: true,
-        message: "Email verified.",
-      });
+      expect(result).toBe(true);
     });
   });
 });

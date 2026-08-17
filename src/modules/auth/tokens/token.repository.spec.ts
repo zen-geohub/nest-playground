@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/unbound-method */
 import { DatabaseService } from "../../../database/database.service";
-import { BadRequestException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { TokenRepository } from "./token.repository";
 
@@ -76,45 +75,23 @@ describe("TokenRepository", () => {
   });
 
   describe("verify", () => {
-    it("should execute transaction updating used_at and email_verified_at when valid token is found", async () => {
+    it("should update used_at for valid token", async () => {
       dbService.query.mockResolvedValueOnce({
-        rows: [{ user_id: "user-123" }],
+        rows: [],
         rowCount: 1,
-        command: "SELECT",
+        command: "UPDATE",
         oid: 0,
         fields: [],
-      });
-
-      dbService.transaction.mockImplementationOnce(async (cb: any) => {
-        const mockClient = {
-          query: jest.fn().mockResolvedValue({ rows: [], rowCount: 1 }),
-        };
-        return cb(mockClient);
       });
 
       await repository.verify("hashed_valid_token");
 
       expect(dbService.query).toHaveBeenCalledWith(
         expect.stringMatching(
-          /SELECT\s+\*\s+FROM\s+user_tokens\s+WHERE\s+token\s*=\s*\$1/i,
+          /UPDATE\s+user_tokens\s+SET\s+used_at\s*=\s*NOW\(\)/i,
         ),
-        ["hashed_valid_token", "email_verification"],
+        ["hashed_valid_token"],
       );
-      expect(dbService.transaction).toHaveBeenCalled();
-    });
-
-    it("should throw BadRequestException if token is missing, expired, or already used", async () => {
-      dbService.query.mockResolvedValueOnce({
-        rows: [],
-        rowCount: 0,
-        command: "SELECT",
-        oid: 0,
-        fields: [],
-      });
-
-      await expect(
-        repository.verify("invalid_or_expired_token"),
-      ).rejects.toThrow(new BadRequestException("Invalid or expired token."));
     });
   });
 });

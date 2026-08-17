@@ -49,7 +49,6 @@ describe("EmailService", () => {
     }).compile();
 
     service = module.get<EmailService>(EmailService);
-    configService = module.get(ConfigService);
   });
 
   it("should be defined", () => {
