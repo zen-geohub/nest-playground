@@ -2,11 +2,7 @@ import { Cookies } from "@/core/decorators/cookie.decorator";
 import { ValidationPipe } from "@/core/pipes/validation.pipe";
 import { AuthService } from "@/modules/auth/auth.service";
 import { CurrentUser } from "@/modules/auth/decorators/current-user.decorator";
-import type {
-  CreateUserDto,
-  LoginDto,
-  VerifyEmailDto,
-} from "@/modules/auth/dto";
+import { CreateUserDto, LoginDto, VerifyEmailDto } from "@/modules/auth/dto";
 import { GoogleAuthGuard } from "@/modules/auth/guards/google-auth.guard";
 import { JwtAuthGuard } from "@/modules/auth/guards/jwt-auth.guard";
 import {
@@ -30,6 +26,15 @@ import {
   UseGuards,
   UsePipes,
 } from "@nestjs/common";
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiCookieAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import type { Response } from "express";
 import Joi from "joi";
@@ -38,6 +43,7 @@ import Joi from "joi";
  * Controller exposing authentication endpoints including user registration,
  * email verification, password resets, token rotation, OAuth callback, and profile retrieval.
  */
+@ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -57,6 +63,52 @@ export class AuthController {
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @UsePipes(new ValidationPipe(CreateUserSchema))
   @HttpCode(201)
+  @ApiOperation({ summary: "Register a new user account" })
+  @ApiBody({ type: CreateUserDto })
+  @ApiResponse({
+    status: 201,
+    description: "User registered successfully. Verification token returned.",
+    schema: {
+      type: "object",
+      properties: {
+        token: { type: "string", example: "verification_token_string" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Validation error.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 400 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/register" },
+        message: { type: "string", example: "Validation failed" },
+        errors: {
+          type: "object",
+          example: {
+            email: '"email" is required',
+            password: '"password" is required',
+            name: '"name" is required',
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Email already exists.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 409 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/register" },
+        message: { type: "string", example: "Email already exists!" },
+      },
+    },
+  })
   async register(@Body() payload: CreateUserDto) {
     const { token } = await this.authService.create(payload);
     await this.emailService.sendVerificationEmail(payload.email, token);
@@ -77,6 +129,67 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @UsePipes(new ValidationPipe(LoginSchema))
   @HttpCode(200)
+  @ApiOperation({
+    summary: "Authenticate user credentials and obtain access token",
+  })
+  @ApiBody({ type: LoginDto })
+  @ApiResponse({
+    status: 200,
+    description:
+      "Authenticated successfully. Returns access token and sets refresh token cookie.",
+    schema: {
+      type: "object",
+      properties: {
+        access_token: { type: "string", example: "eyJhbGciOiJIUzI1Ni..." },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Validation error.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 400 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/login" },
+        message: { type: "string", example: "Validation failed" },
+        errors: {
+          type: "object",
+          example: {
+            email: '"email" is required',
+            password: '"password" is required',
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Invalid credentials.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 401 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/login" },
+        message: { type: "string", example: "Invalid credentials!" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: "User not found.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 404 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/login" },
+        message: { type: "string", example: "User not found!" },
+      },
+    },
+  })
   async login(
     @Body() payload: LoginDto,
     @Res({ passthrough: true }) response: Response,
@@ -106,6 +219,34 @@ export class AuthController {
    */
   @Post("refresh")
   @HttpCode(200)
+  @ApiOperation({
+    summary: "Rotate refresh token session and issue new access token",
+  })
+  @ApiCookieAuth("refresh_token")
+  @ApiResponse({
+    status: 200,
+    description:
+      "Token session rotated successfully. Returns new access token.",
+    schema: {
+      type: "object",
+      properties: {
+        access_token: { type: "string", example: "eyJhbGciOiJIUzI1Ni..." },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Missing, invalid, or expired refresh token.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 401 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/refresh" },
+        message: { type: "string", example: "Invalid or expired token." },
+      },
+    },
+  })
   async refresh(
     @Cookies("refresh_token") refreshToken: string,
     @Res({ passthrough: true }) response: Response,
@@ -144,6 +285,35 @@ export class AuthController {
    */
   @Get("verify-email")
   @HttpCode(200)
+  @ApiOperation({ summary: "Verify user email address using token" })
+  @ApiQuery({
+    name: "token",
+    type: String,
+    description: "Email verification token",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Email address verified successfully.",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: true },
+        message: { type: "string", example: "Email verified." },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid or expired token.",
+    schema: {
+      type: "object",
+      properties: {
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/verify-email" },
+        message: { type: "string", example: "Invalid or expired token." },
+      },
+    },
+  })
   async verifyEmail(
     @Query(new ValidationPipe(VerifyEmailSchema)) { token }: VerifyEmailDto,
   ) {
@@ -171,6 +341,37 @@ export class AuthController {
   @Post("resend-verification")
   @Throttle({ default: { limit: 3, ttl: 300_000 } })
   @HttpCode(200)
+  @ApiOperation({ summary: "Resend email verification link" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["email"],
+      properties: {
+        email: { type: "string", example: "jane.doe@example.com" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Verification email resent.",
+    schema: {
+      type: "object",
+      properties: { token: { type: "string", example: "random opaque token" } },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Email not found or already verified.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 400 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/resend-verification" },
+        message: { type: "string", example: "Email already verified!" },
+      },
+    },
+  })
   async resendVerification(
     @Body(
       new ValidationPipe(
@@ -195,6 +396,37 @@ export class AuthController {
   @Post("forgot-password")
   @Throttle({ default: { limit: 3, ttl: 900_000 } })
   @HttpCode(200)
+  @ApiOperation({ summary: "Request password reset email" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["email"],
+      properties: {
+        email: { type: "string", example: "jane.doe@example.com" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Password reset link generated and email sent.",
+    schema: {
+      type: "object",
+      properties: { token: { type: "string", example: "random opaque token" } },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Email not found.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 400 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/forgot-password" },
+        message: { type: "string", example: "Email not found!" },
+      },
+    },
+  })
   async forgotPassword(
     @Body(
       new ValidationPipe(
@@ -218,6 +450,41 @@ export class AuthController {
    */
   @Post("reset-password")
   @HttpCode(200)
+  @ApiOperation({ summary: "Reset password using reset token" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["token", "password"],
+      properties: {
+        token: { type: "string", example: "reset_token_string" },
+        password: { type: "string", example: "NewSecurePass123!" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Password successfully changed.",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: true },
+        message: { type: "string", example: "Password successfully changed." },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid or expired reset token.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 400 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/reset-password" },
+        message: { type: "string", example: "Invalid or expired token." },
+      },
+    },
+  })
   resetPassword(
     @Body(
       new ValidationPipe(
@@ -242,10 +509,48 @@ export class AuthController {
   @Get("me")
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)
+  @ApiOperation({ summary: "Get current authenticated user profile" })
+  @ApiBearerAuth("JWT-auth")
+  @ApiResponse({
+    status: 200,
+    description: "User profile details retrieved successfully.",
+    schema: {
+      type: "object",
+      properties: {
+        id: { type: "string", example: "user-uuid-123" },
+        email: { type: "string", example: "jane.doe@example.com" },
+        name: { type: "string", example: "Jane Doe" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Unauthorized access token.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 401 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/me" },
+        message: { type: "string", example: "Unauthorized" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: "User not found.",
+    schema: {
+      type: "object",
+      properties: {
+        statusCode: { type: "number", example: 404 },
+        timestamp: { type: "string", example: "2026-08-16T16:08:06.371Z" },
+        path: { type: "string", example: "/auth/me" },
+        message: { type: "string", example: "User not found!" },
+      },
+    },
+  })
   me(@CurrentUser() user: { id: string }) {
-    const result = this.authService.me(user.id);
-
-    return result;
+    return this.authService.me(user.id);
   }
 
   /**
@@ -253,6 +558,7 @@ export class AuthController {
    */
   @Get("google")
   @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: "Initiate Google OAuth2 authentication flow" })
   googleLogin() {}
 
   /**
@@ -264,6 +570,18 @@ export class AuthController {
    */
   @Get("google/callback")
   @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: "Handle Google OAuth2 callback" })
+  @ApiResponse({
+    status: 200,
+    description:
+      "OAuth login successful. Returns access token and sets refresh token cookie.",
+    schema: {
+      type: "object",
+      properties: {
+        access_token: { type: "string", example: "eyJhbGciOiJIUzI1Ni..." },
+      },
+    },
+  })
   async googleCallback(
     @CurrentUser() user: { id: string; email: string; name: string },
     @Res({ passthrough: true }) response: Response,
@@ -295,6 +613,12 @@ export class AuthController {
    */
   @Post("logout")
   @HttpCode(200)
+  @ApiOperation({ summary: "Revoke active refresh token session and logout" })
+  @ApiCookieAuth("refresh_token")
+  @ApiResponse({
+    status: 200,
+    description: "Logged out successfully and cookie cleared.",
+  })
   async logout(
     @Cookies("refresh_token") refreshToken: string,
     @Res({ passthrough: true }) response: Response,
