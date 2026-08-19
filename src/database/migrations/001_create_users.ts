@@ -20,6 +20,11 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       type: "varchar(255)",
       notNull: true,
     },
+    role: {
+      type: "varchar(255)",
+      notNull: true,
+      default: "user",
+    },
     email_verified_at: {
       type: "timestamptz",
       default: null,

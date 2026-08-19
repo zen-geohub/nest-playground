@@ -50,6 +50,7 @@ describe("AuthRepository", () => {
         email: "existing@example.com",
         password: "$argon2id$v=19$m=65536,t=3,p=4$hash",
         name: "Existing User",
+        role: "user",
         email_verified_at: "2026-08-15T00:00:00Z",
       };
 

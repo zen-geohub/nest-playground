@@ -11,7 +11,6 @@ import { AuthRepository } from "@/modules/auth/auth.repository";
 import { CreateUserDto, LoginDto } from "@/modules/auth/dto";
 import { TokenService } from "@/modules/auth/tokens/token.service";
 import { SessionService } from "@/modules/auth/sessions/session.service";
-import { ConfigService } from "@nestjs/config";
 
 /**
  * Service encapsulating core authentication logic, credential hashing, user onboarding,
@@ -24,7 +23,6 @@ export class AuthService {
     private readonly repository: AuthRepository,
     private readonly sessionService: SessionService,
     private readonly tokenService: TokenService,
-    private readonly config: ConfigService,
   ) {
     this.logger.setContext(AuthService.name);
   }
@@ -71,6 +69,16 @@ export class AuthService {
     return {
       token,
     };
+  }
+
+  async verifyEmail(token: string) {
+    const hashToken = this.tokenService.hashToken(token);
+    const result = await this.repository.verifyEmail(hashToken);
+
+    if (!result)
+      throw new InternalServerErrorException("Internal server error.");
+
+    return true;
   }
 
   /**
@@ -134,7 +142,10 @@ export class AuthService {
     const verified = await verify(user.password, payload.password);
     if (!verified) throw new UnauthorizedException("Invalid credentials!");
 
-    const accessToken = await this.sessionService.generateAccessToken(user.id);
+    const accessToken = await this.sessionService.generateAccessToken(
+      user.id,
+      user.role,
+    );
     const refreshToken = await this.sessionService.generateRefreshToken(
       user.id,
     );
@@ -157,12 +168,13 @@ export class AuthService {
 
     if (!user) throw new NotFoundException("User not found!");
 
-    const { id: ID, email, name } = user;
+    const { id: ID, email, name, role } = user;
 
     return {
       id: ID,
       email,
       name,
+      role,
     };
   }
 

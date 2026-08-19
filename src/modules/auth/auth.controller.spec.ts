@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unused-vars */
 import { ConflictException, UnauthorizedException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuthController } from "./auth.controller";
@@ -29,6 +29,7 @@ describe("AuthController", () => {
       me: jest.fn(),
       findOrCreateIdentity: jest.fn(),
       resendVerifEmail: jest.fn(),
+      verifyEmail: jest.fn(),
     };
 
     const mockTokenService = {
@@ -106,17 +107,16 @@ describe("AuthController", () => {
   });
 
   describe("verifyEmail", () => {
-    it("should delegate token verification to tokenService.verifyToken", async () => {
-      const mockResult = { success: true, message: "Email verified." };
-      tokenService.verifyToken.mockResolvedValue(mockResult);
+    it("should delegate token verification to authService.verifyEmail", async () => {
+      authService.verifyEmail.mockResolvedValue(true);
 
       const result = await controller.verifyEmail({ token: "valid_token" });
 
-      expect(tokenService.verifyToken).toHaveBeenCalledWith(
-        "valid_token",
-        "email_verification",
-      );
-      expect(result).toEqual(mockResult);
+      expect(authService.verifyEmail).toHaveBeenCalledWith("valid_token");
+      expect(result).toEqual({
+        success: true,
+        message: "Email verified.",
+      });
     });
   });
 

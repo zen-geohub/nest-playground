@@ -175,6 +175,7 @@ describe("AuthService", () => {
         email: "user@example.com",
         password: hashedPassword,
         name: "Jane Doe",
+        role: "user",
         email_verified_at: "2026-08-15T00:00:00Z",
       };
 
@@ -191,6 +192,7 @@ describe("AuthService", () => {
       );
       expect(sessionService.generateAccessToken).toHaveBeenCalledWith(
         "user-uuid-101",
+        "user",
       );
       expect(sessionService.generateRefreshToken).toHaveBeenCalledWith(
         "user-uuid-101",

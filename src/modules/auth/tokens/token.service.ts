@@ -1,5 +1,5 @@
 import { TokenRepository } from "@/modules/auth/tokens/token.repository";
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { createHash, randomBytes } from "crypto";
 
 /**
@@ -39,25 +39,6 @@ export class TokenService {
     await this.repository.upsert(id, type, this.hashToken(token), expiresAt);
 
     return token;
-  }
-
-  /**
-   * Hashes a raw token string and verifies its validity against active database records.
-   *
-   * @param token - Raw token string provided by client.
-   * @param type - Expected token purpose type.
-   * @returns Promise resolving to true if verified successfully.
-   * @throws BadRequestException if token is invalid, expired, or already used.
-   */
-  async verifyToken(token: string, type: string) {
-    const hashed = this.hashToken(token);
-
-    const record = await this.repository.findByToken(hashed, type);
-    if (!record) throw new BadRequestException("Invalid or expired token.");
-
-    await this.repository.verify(hashed);
-
-    return true;
   }
 
   /**
