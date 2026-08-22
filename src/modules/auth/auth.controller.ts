@@ -200,7 +200,7 @@ export class AuthController {
     response.cookie("refresh_token", refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "none",
       path: "/auth",
     });
 
@@ -267,7 +267,7 @@ export class AuthController {
     response.cookie("refresh_token", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "none",
       path: "/auth",
     });
 
@@ -317,10 +317,7 @@ export class AuthController {
   async verifyEmail(
     @Query(new ValidationPipe(VerifyEmailSchema)) { token }: VerifyEmailDto,
   ) {
-    const verified = await this.tokenService.verifyToken(
-      token,
-      "email_verification",
-    );
+    const verified = await this.authService.verifyEmail(token);
 
     if (!verified)
       throw new InternalServerErrorException("Internal server error.");
@@ -520,6 +517,7 @@ export class AuthController {
         id: { type: "string", example: "user-uuid-123" },
         email: { type: "string", example: "jane.doe@example.com" },
         name: { type: "string", example: "Jane Doe" },
+        role: { type: "string", example: "user" },
       },
     },
   })
@@ -595,7 +593,7 @@ export class AuthController {
     response.cookie("refresh_token", refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: "none",
       path: "/auth",
     });
 

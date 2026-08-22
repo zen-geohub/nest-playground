@@ -52,7 +52,7 @@ export class TokenRepository {
     expiresAt: Date = new Date(Date.now() + 60 * 60 * 1000),
   ) {
     const { columns, placeholders, values } = buildInsert(
-      { id, type, token, expiresAt },
+      { user_id: id, type, token, expires_at: expiresAt },
       new Set(["user_id", "type", "token", "expires_at"]),
     );
 
@@ -78,7 +78,7 @@ export class TokenRepository {
     expiresAt: Date = new Date(Date.now() + 60 * 60 * 1000),
   ) {
     const { columns, placeholders, values } = buildInsert(
-      { id, type, token, expiresAt },
+      { user_id: id, type, token, expires_at: expiresAt },
       new Set(["user_id", "type", "token", "expires_at"]),
     );
 

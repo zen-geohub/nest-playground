@@ -18,10 +18,14 @@ export class SessionService {
    * Signs a short-lived JWT access token containing the user ID subject (`sub`).
    *
    * @param id - User primary key UUID.
+   * @param role - User role.
    * @returns Signed JWT access token string.
    */
-  async generateAccessToken(id: string) {
-    return await this.jwtService.signAsync({ sub: id });
+  async generateAccessToken(id: string, role?: string) {
+    const payload: Record<string, string> = { sub: id };
+    if (role) payload.role = role;
+
+    return await this.jwtService.signAsync(payload);
   }
 
   /**

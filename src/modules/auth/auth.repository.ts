@@ -32,6 +32,7 @@ export class AuthRepository {
     email: string;
     password: string;
     name: string;
+    role: string;
     email_verified_at: string;
   } | null> {
     const { rows } = await this.db.query<{
@@ -39,9 +40,10 @@ export class AuthRepository {
       email: string;
       password: string;
       name: string;
+      role: string;
       email_verified_at: string;
     }>(
-      `SELECT id, email, password, name, email_verified_at
+      `SELECT id, email, password, name, role, email_verified_at
       FROM users
       WHERE LOWER(email) = LOWER($1)`,
       [email],
@@ -61,14 +63,16 @@ export class AuthRepository {
     email: string;
     password: string;
     name: string;
+    role: string;
   } | null> {
     const { rows } = await this.db.query<{
       id: string;
       email: string;
       password: string;
       name: string;
+      role: string;
     }>(
-      `SELECT id, email, password, name
+      `SELECT id, email, password, name, role
       FROM users
       WHERE id = $1`,
       [id],
@@ -171,6 +175,27 @@ export class AuthRepository {
 
       return { userId, isNewUser: true };
     });
+  }
+
+  async verifyEmail(token: string) {
+    const record = await this.tokenRepository.findByToken(
+      token,
+      "email_verification",
+    );
+    if (!record) throw new BadRequestException("Invalid or expired token.");
+
+    await this.db.transaction(async (client) => {
+      await this.tokenRepository.verify(token);
+
+      await client.query(
+        `UPDATE users
+        SET email_verified_at = NOW()
+        WHERE id = $1`,
+        [record.user_id],
+      );
+    });
+
+    return true;
   }
 
   /**

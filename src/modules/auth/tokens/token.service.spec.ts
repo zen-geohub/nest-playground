@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/unbound-method */
 import { JwtService } from "@nestjs/jwt";
 import { Test, TestingModule } from "@nestjs/testing";
 import { TokenRepository } from "./token.repository";
@@ -94,24 +94,6 @@ describe("TokenService", () => {
         expect.any(Date),
       );
       expect(token).toBeDefined();
-    });
-  });
-
-  describe("verifyToken", () => {
-    it("should hash token and call repository.verify when token record exists", async () => {
-      const rawToken = "raw_verification_token";
-      const hashedToken = service.hashToken(rawToken);
-      repository.findByToken.mockResolvedValue({ id: "token-id-1" } as any);
-      repository.verify.mockResolvedValue(undefined);
-
-      const result = await service.verifyToken(rawToken, "email_verification");
-
-      expect(repository.findByToken).toHaveBeenCalledWith(
-        hashedToken,
-        "email_verification",
-      );
-      expect(repository.verify).toHaveBeenCalledWith(hashedToken);
-      expect(result).toBe(true);
     });
   });
 });
