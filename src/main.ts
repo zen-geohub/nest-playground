@@ -11,6 +11,12 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
+  app.enableCors({
+    origin: ["https://apps.zen.is-a.dev", "http://localhost:5173"],
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    allowedHeaders: "Content-Type, Accept, Authorization",
+    credentials: true,
+  });
   app.set("trust proxy", 1);
   app.useLogger(app.get(Logger));
   app.use(cookieParser());

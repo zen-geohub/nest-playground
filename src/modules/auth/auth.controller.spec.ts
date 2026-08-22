@@ -163,7 +163,7 @@ describe("AuthController", () => {
         "refresh_token_abc",
         expect.objectContaining({
           httpOnly: true,
-          sameSite: "lax",
+          sameSite: "none",
           path: "/auth",
         }),
       );
@@ -237,7 +237,7 @@ describe("AuthController", () => {
         "new_refresh_token_999",
         expect.objectContaining({
           httpOnly: true,
-          sameSite: "lax",
+          sameSite: "none",
           path: "/auth",
         }),
       );
@@ -252,6 +252,7 @@ describe("AuthController", () => {
         id: "user-uuid-101",
         email: "user@example.com",
         name: "Jane Doe",
+        role: "superadmin",
       };
 
       authService.me.mockResolvedValue(mockProfile);
@@ -290,7 +291,7 @@ describe("AuthController", () => {
         "google_refresh_token_xyz",
         expect.objectContaining({
           httpOnly: true,
-          sameSite: "lax",
+          sameSite: "none",
           path: "/auth",
         }),
       );
